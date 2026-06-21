@@ -1,10 +1,258 @@
 """Streamlit app: radio (prompt | click), upload, run, display outputs."""
+from __future__ import annotations
+import base64
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+import cv2
+import numpy as np
+import pandas as pd
 import streamlit as st
+from PIL import Image
+from streamlit_image_coordinates import streamlit_image_coordinates
+
+import config
+from core import run_pipeline
+from input.click_input import validate_click
+
+# Maximum width for the interactive image display (px)
+_MAX_DISPLAY_W = 720
 
 
-def main():
+# ── image helpers ─────────────────────────────────────────────────────────────
+
+def _to_pil(bgr: np.ndarray) -> Image.Image:
+    return Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+
+
+def _scale_for_display(bgr: np.ndarray):
+    """Return (scale_factor, PIL image) scaled to _MAX_DISPLAY_W."""
+    h, w = bgr.shape[:2]
+    scale = min(1.0, _MAX_DISPLAY_W / w)
+    dw, dh = int(w * scale), int(h * scale)
+    return scale, _to_pil(cv2.resize(bgr, (dw, dh)))
+
+
+def _annotate(bgr: np.ndarray,
+              start: tuple | None = None,
+              goal: tuple | None = None) -> np.ndarray:
+    out = bgr.copy()
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    if start:
+        cv2.circle(out, start, 14, (0, 0, 255), -1)
+        cv2.circle(out, start, 14, (0, 0, 0), 2)
+        cv2.putText(out, "S", (start[0] + 16, start[1] + 8), font, 0.8, (255, 255, 255), 2)
+    if goal:
+        cv2.circle(out, goal, 14, (0, 255, 255), -1)
+        cv2.circle(out, goal, 14, (0, 0, 0), 2)
+        cv2.putText(out, "G", (goal[0] + 16, goal[1] + 8), font, 0.8, (0, 0, 0), 2)
+    return out
+
+
+def _gif_html(path: str) -> None:
+    """Display an animated GIF reliably via base64-embedded HTML."""
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    st.markdown(
+        f'<img src="data:image/gif;base64,{data}" style="width:100%;border-radius:4px">',
+        unsafe_allow_html=True,
+    )
+
+
+def _png_bytes(path: str) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
+
+
+# ── session state ─────────────────────────────────────────────────────────────
+
+def _init_state() -> None:
+    defaults = {
+        "phase":      "start",   # start → goal → ready → done
+        "image_bgr":  None,
+        "image_key":  None,      # filename+size to detect new uploads
+        "start_pos":  None,
+        "goal_pos":   None,
+        "run_result": None,
+        "cur_mode":   config.DEFAULT_INPUT_MODE,
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+def _reset_clicks() -> None:
+    st.session_state.phase      = "start"
+    st.session_state.start_pos  = None
+    st.session_state.goal_pos   = None
+    st.session_state.run_result = None
+
+
+# ── results panel ─────────────────────────────────────────────────────────────
+
+def _show_results(result) -> None:
+    st.divider()
+    reached = result.reached_goal
+    st.success(f"{'Goal reached' if reached else 'Stopped early'} — {len(result.hops)} hops")
+
+    # GIF + trail
+    col_gif, col_trail = st.columns(2)
+    with col_gif:
+        st.subheader("Trajectory GIF")
+        if "gif" in result.output_paths:
+            _gif_html(result.output_paths["gif"])
+    with col_trail:
+        st.subheader("Trail Still")
+        if "trail" in result.output_paths:
+            st.image(_png_bytes(result.output_paths["trail"]))
+
+    # Candidates + selected
+    col_cand, col_sel = st.columns(2)
+    with col_cand:
+        st.subheader("Candidates (hop 0)")
+        if "candidates" in result.output_paths:
+            st.image(_png_bytes(result.output_paths["candidates"]))
+    with col_sel:
+        st.subheader("Selected per hop")
+        if "selected" in result.output_paths:
+            st.image(_png_bytes(result.output_paths["selected"]))
+
+    # Hop table
+    st.subheader("Hop / Cost table")
+    if result.hops:
+        rows = [
+            {
+                "Hop":    i + 1,
+                "From":   str(tuple(h["from"])),
+                "To":     str(tuple(h["to"])),
+                "Cost":   round(h["cost"], 1),
+                "Detour": "yes" if h["detour"] else "",
+            }
+            for i, h in enumerate(result.hops)
+        ]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    # Reasoning + log
+    with st.expander("Reasoning"):
+        st.write(result.reasoning)
+    with st.expander("Log JSON"):
+        if "log" in result.output_paths:
+            with open(result.output_paths["log"]) as f:
+                st.json(json.load(f))
+
+
+# ── click mode UI ─────────────────────────────────────────────────────────────
+
+def _run_pipeline(image: np.ndarray) -> None:
+    start = st.session_state.start_pos
+    goal  = st.session_state.goal_pos
+    with st.spinner("Planning trajectory…"):
+        result = run_pipeline(image, start, goal, config)
+    st.session_state.run_result = result
+    st.session_state.phase      = "done"
+    st.rerun()
+
+
+def _click_mode(image: np.ndarray) -> None:
+    phase = st.session_state.phase
+
+    # ── instructions ──────────────────────────────────────────────────────────
+    if phase == "start":
+        st.info("**Step 1 of 2** — Click the **START** position on the image (will be marked in red)")
+    elif phase == "goal":
+        st.info("**Step 2 of 2** — Click the **GOAL** position on the image (will be marked in yellow)")
+    elif phase in ("ready", "done"):
+        st.info("Start **(S)** and Goal **(G)** are set. Press **Run** to plan the trajectory.")
+
+    # ── annotated image ───────────────────────────────────────────────────────
+    annotated = _annotate(image,
+                          start=st.session_state.start_pos,
+                          goal=st.session_state.goal_pos)
+    scale, display_pil = _scale_for_display(annotated)
+
+    if phase in ("start", "goal"):
+        # Interactive: capture next click
+        coords = streamlit_image_coordinates(display_pil, key=f"click_{phase}")
+        if coords is not None:
+            orig = validate_click(
+                (int(coords["x"] / scale), int(coords["y"] / scale)),
+                image.shape,
+            )
+            if phase == "start":
+                st.session_state.start_pos = orig
+                st.session_state.phase     = "goal"
+            else:
+                st.session_state.goal_pos = orig
+                st.session_state.phase    = "ready"
+            st.rerun()
+    else:
+        # Static once both points are chosen
+        st.image(display_pil, width=_MAX_DISPLAY_W)
+
+    # ── action buttons ────────────────────────────────────────────────────────
+    btn_col, rst_col = st.columns([2, 1])
+    with btn_col:
+        if phase == "ready" and st.button("Run pipeline", type="primary"):
+            _run_pipeline(image)
+        if phase == "done" and st.button("Run again", type="secondary"):
+            _run_pipeline(image)
+    with rst_col:
+        if st.button("Reset"):
+            _reset_clicks()
+            st.rerun()
+
+    # ── results ───────────────────────────────────────────────────────────────
+    if st.session_state.run_result is not None:
+        _show_results(st.session_state.run_result)
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    st.set_page_config(page_title="Physical AI Planning Agent", layout="wide")
     st.title("Physical AI Planning & Validation Agent")
-    raise NotImplementedError("Step 3 will implement the Streamlit UI")
+
+    _init_state()
+
+    # Mode radio
+    mode = st.radio(
+        "Input mode",
+        options=["click", "prompt"],
+        format_func=lambda m: "Click locations (Mode B — click start & goal)" if m == "click"
+                              else "Describe with prompt (Mode A — coming in Step 6)",
+        horizontal=True,
+        index=0 if config.DEFAULT_INPUT_MODE == "click" else 1,
+    )
+    if mode != st.session_state.cur_mode:
+        st.session_state.cur_mode = mode
+        _reset_clicks()
+
+    # Image upload
+    uploaded = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+    if uploaded is None:
+        st.info("Upload an image to begin.")
+        return
+
+    # Detect new upload and reload
+    img_key = f"{uploaded.name}_{uploaded.size}"
+    if st.session_state.image_key != img_key:
+        arr = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
+        st.session_state.image_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        st.session_state.image_key = img_key
+        _reset_clicks()
+
+    image = st.session_state.image_bgr
+    if image is None:
+        st.error("Could not decode image.")
+        return
+
+    if mode == "click":
+        _click_mode(image)
+    else:
+        st.info("Prompt mode (Mode A) is not yet available — it will be wired up in Step 6.")
 
 
 if __name__ == "__main__":
