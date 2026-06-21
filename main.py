@@ -54,12 +54,28 @@ def main():
         print(f"[Mode B] start={start_pos}  goal={goal_pos}")
 
     elif args.goal:
-        # Mode A: prompt (localization stubbed until Steps 4–6)
-        print("[Mode A] Localization not yet implemented — using image-quadrant stub.")
-        h, w = image.shape[:2]
-        start_pos = (w // 4, h // 2)
-        goal_pos  = (3 * w // 4, h // 2)
-        print(f"[Mode A stub] start={start_pos}  goal={goal_pos}")
+        # Mode A: full prompt pipeline — LLM intent parser + localization router
+        from input.intent_parser import parse_intent
+        from localization.router import resolve
+
+        intent = parse_intent(args.goal, config)
+        print(f"[Mode A] intent: {intent}")
+
+        start_pos = resolve(intent["source"], image, cfg=config)
+        goal_pos  = resolve(intent["target"], image, cfg=config)
+
+        if start_pos is None:
+            h, w = image.shape[:2]
+            start_pos = (w // 2, h // 2)
+            print(f"[Mode A] source unresolved - defaulting to image centre {start_pos}")
+
+        if goal_pos is None:
+            print("[Mode A] target unresolved — cannot proceed")
+            sys.exit(1)
+
+        start_pos = validate_click(start_pos, image.shape)
+        goal_pos  = validate_click(goal_pos,  image.shape)
+        print(f"[Mode A] start={start_pos}  goal={goal_pos}")
 
     else:
         print("[ERROR] Provide --start X,Y --goal-xy X,Y  (Mode B)  "

@@ -209,6 +209,66 @@ def _click_mode(image: np.ndarray) -> None:
         _show_results(st.session_state.run_result)
 
 
+# ── prompt mode UI (Mode A) ───────────────────────────────────────────────────
+
+def _prompt_mode(image: np.ndarray) -> None:
+    st.info(
+        "**Mode A — Prompt**: Type a natural-language instruction. "
+        "The LLM will extract start and goal, then the detector/heuristic will resolve them to pixels."
+    )
+
+    instruction = st.text_input(
+        "Instruction",
+        placeholder='e.g. "move the red block to the bottom left corner"',
+        key="prompt_instruction",
+    )
+
+    col_run, col_rst = st.columns([2, 1])
+    with col_run:
+        run_btn = st.button("Parse & Run", type="primary",
+                            disabled=not instruction.strip())
+    with col_rst:
+        if st.button("Reset", key="prompt_reset"):
+            st.session_state.run_result = None
+            st.rerun()
+
+    if run_btn and instruction.strip():
+        from input.intent_parser import parse_intent
+        from localization.router import resolve
+        from input.click_input import validate_click as _vc
+
+        with st.spinner("Parsing instruction…"):
+            intent = parse_intent(instruction, config,
+                                  session_context=st.session_state.get("session_ctx"))
+
+        st.write("**Parsed intent:**", intent)
+
+        with st.spinner("Resolving locations…"):
+            start_pos = resolve(intent["source"], image, cfg=config)
+            goal_pos  = resolve(intent["target"], image, cfg=config)
+
+        if start_pos is None:
+            h, w = image.shape[:2]
+            start_pos = (w // 2, h // 2)
+            st.warning(f"Source unresolved — using image centre {start_pos}")
+
+        if goal_pos is None:
+            st.error("Could not resolve target location. Try a more specific instruction.")
+            return
+
+        start_pos = _vc(start_pos, image.shape)
+        goal_pos  = _vc(goal_pos,  image.shape)
+        st.write(f"**Start:** {start_pos}   **Goal:** {goal_pos}")
+
+        with st.spinner("Planning trajectory…"):
+            result = run_pipeline(image, start_pos, goal_pos, config)
+
+        st.session_state.run_result = result
+
+    if st.session_state.run_result is not None:
+        _show_results(st.session_state.run_result)
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -222,7 +282,7 @@ def main() -> None:
         "Input mode",
         options=["click", "prompt"],
         format_func=lambda m: "Click locations (Mode B — click start & goal)" if m == "click"
-                              else "Describe with prompt (Mode A — coming in Step 6)",
+                              else "Describe with prompt (Mode A — LLM intent parser)",
         horizontal=True,
         index=0 if config.DEFAULT_INPUT_MODE == "click" else 1,
     )
@@ -252,7 +312,7 @@ def main() -> None:
     if mode == "click":
         _click_mode(image)
     else:
-        st.info("Prompt mode (Mode A) is not yet available — it will be wired up in Step 6.")
+        _prompt_mode(image)
 
 
 if __name__ == "__main__":

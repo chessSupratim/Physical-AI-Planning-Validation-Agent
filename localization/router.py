@@ -62,7 +62,7 @@ def resolve(field: dict,
             pos = session_context.get("current_pos") or session_context.get("start_pos")
             if pos:
                 return tuple(pos)
-        print(f"[router] Memory ref '{value}' — no session context available")
+        print(f"[router] Memory ref '{value}' - no session context available")
         return None
 
     print(f"[router] Unknown field type: {ftype!r}")
