@@ -275,8 +275,21 @@ def _prompt_mode(image: np.ndarray) -> None:
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def _sidebar_context() -> None:
-    """Sidebar panel showing session history and a clear button."""
+    """Sidebar panel: pather toggle + session history."""
     with st.sidebar:
+        # ── pather selector ───────────────────────────────────────────────
+        st.header("Settings")
+        pather = st.radio(
+            "Navigation pather",
+            options=["detour", "astar"],
+            format_func=lambda p: "Greedy detour (default)" if p == "detour"
+                                  else "A* grid pather",
+            index=0 if config.PATHER == "detour" else 1,
+            key="pather_choice",
+        )
+        config.PATHER = pather
+
+        st.divider()
         st.header("Session")
         ctx = get_context()
         if not ctx:

@@ -83,6 +83,52 @@ def _manual_post_process(outputs, threshold: float,
     }]
 
 
+def locate_all(image: np.ndarray,
+               descriptions: list,
+               threshold: float = 0.1,
+               model_id: str = "google/owlvit-base-patch32") -> list:
+    """Run OWL-ViT with ALL `descriptions` in ONE forward pass; return every box above threshold.
+
+    Uses the multi-query API: processor(text=[descriptions], images=img).
+    One inference call regardless of query count (same latency as locate()).
+
+    Returns list of {"x1","y1","x2","y2","score"} sorted by score descending.
+    """
+    processor, model = load_detector(model_id)
+    h, w = image.shape[:2]
+    pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+
+    t0 = time.time()
+    inputs = processor(text=[descriptions], images=pil_img, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+    elapsed = round(time.time() - t0, 2)
+
+    results = _post_process(processor, outputs, threshold, h, w)
+    boxes   = results[0]["boxes"].cpu().numpy()
+    scores  = results[0]["scores"].cpu().numpy()
+
+    if len(scores) == 0:
+        return []
+
+    # Drop hallucinated full-image boxes
+    valid = (
+        ((boxes[:, 2] - boxes[:, 0]) < 0.8 * w) &
+        ((boxes[:, 3] - boxes[:, 1]) < 0.8 * h)
+    )
+    boxes, scores = boxes[valid], scores[valid]
+
+    out = []
+    for box, score in zip(boxes, scores):
+        x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w - 1, x2), min(h - 1, y2)
+        out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                    "score": float(score), "elapsed_s": elapsed})
+
+    return sorted(out, key=lambda b: b["score"], reverse=True)
+
+
 def locate(image: np.ndarray,
            description: str,
            threshold: float = 0.1,

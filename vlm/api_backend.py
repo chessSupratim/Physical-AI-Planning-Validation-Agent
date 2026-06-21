@@ -13,7 +13,7 @@ load_dotenv()
 def ask_vlm(prompt: str, cfg, image: Optional[np.ndarray] = None) -> str:
     """Send `prompt` (+ optional image) to the configured backend; return text response."""
     backend = getattr(cfg, "VLM_BACKEND", "gemini")
-    model   = getattr(cfg, "GEMINI_MODEL", "gemini-2.0-flash-lite")
+    model   = getattr(cfg, "GEMINI_MODEL", "gemini-3.1-flash-lite")
 
     if backend == "gemini":
         return _ask_gemini(prompt, model, image)

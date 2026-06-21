@@ -24,8 +24,9 @@ def _line_blocked(p0: tuple, p1: tuple, boxes: List[dict]) -> bool:
 
 
 def _filter_boxes(obstacle_boxes: List[dict], goal_pos: tuple,
-                  image_shape: tuple) -> List[dict]:
-    """Drop hallucinated boxes and boxes that contain the goal."""
+                  image_shape: tuple,
+                  start_pos: Optional[tuple] = None) -> List[dict]:
+    """Drop hallucinated boxes, boxes containing the goal, and boxes containing start."""
     h, w = image_shape[:2]
     gx, gy = goal_pos
     result = []
@@ -38,17 +39,59 @@ def _filter_boxes(obstacle_boxes: List[dict], goal_pos: tuple,
         # Goal-inside-obstacle exception: destination is not a wall
         if b["x1"] <= gx <= b["x2"] and b["y1"] <= gy <= b["y2"]:
             continue
+        # Start-inside-obstacle exception: the mover itself is not an obstacle
+        if start_pos is not None:
+            sx, sy = start_pos
+            if b["x1"] <= sx <= b["x2"] and b["y1"] <= sy <= b["y2"]:
+                continue
         result.append(b)
     return result
+
+
+def _waypoints_to_hops(waypoints: List[Tuple[int, int]]) -> List[dict]:
+    """Convert A* waypoints to hop records compatible with the greedy format."""
+    hops = []
+    for i in range(len(waypoints) - 1):
+        p0, p1 = waypoints[i], waypoints[i + 1]
+        hops.append({
+            "from":               list(p0),
+            "to":                 list(p1),
+            "best_candidate_idx": 0,
+            "cost":               math.dist(p0, p1),
+            "detour":             False,
+            "detour_waypoint":    None,
+        })
+    return hops
 
 
 def run_hop_loop(image,
                  start_pos: Tuple[int, int],
                  goal_pos: Tuple[int, int],
                  obstacle_boxes: List[dict],
-                 cfg) -> List[dict]:
+                 cfg,
+                 floor_y_top: Optional[int] = None) -> List[dict]:
     """Return list of hop records {from, to, best_candidate_idx, cost, detour, detour_waypoint}."""
-    valid_boxes = _filter_boxes(obstacle_boxes, goal_pos, image.shape)
+    valid_boxes = _filter_boxes(obstacle_boxes, goal_pos, image.shape,
+                               start_pos=tuple(start_pos))
+
+    # Floor awareness: if the goal is above the floor line, lower the constraint
+    # so the robot can actually reach it (destination exception).
+    if floor_y_top is not None:
+        goal_tol = getattr(cfg, "GOAL_TOLERANCE_PX", 25)
+        if goal_pos[1] < floor_y_top:
+            floor_y_top = max(0, goal_pos[1] - goal_tol)
+            print(f"[hop_loop] Goal above floor line — relaxing floor_y_top to {floor_y_top}")
+
+    # ── A* pather (optional) ─────────────────────────────────────────────────
+    if getattr(cfg, "PATHER", "detour") == "astar":
+        from navigation.astar import astar_path
+        cell_size = getattr(cfg, "ASTAR_CELL_SIZE", 10)
+        waypoints = astar_path(start_pos, goal_pos, valid_boxes,
+                               image.shape, cell_size)
+        if waypoints is not None:
+            print(f"[A*] Path found: {len(waypoints)} waypoints")
+            return _waypoints_to_hops(waypoints)
+        print("[A*] No path found - falling back to greedy detour")
 
     pos: Tuple[int, int] = tuple(start_pos)
     goal: Tuple[int, int] = tuple(goal_pos)
@@ -95,6 +138,18 @@ def run_hop_loop(image,
 
         # ── generate candidates + cost-select ────────────────────────────────
         candidates = generate_candidates(pos, sub_goal, step_len)
+
+        # Floor awareness: drop candidates whose endpoint is in the wall/ceiling
+        # region (y < floor_y_top).  Exception: landing within GOAL_TOLERANCE of
+        # the final goal is always allowed so the agent can still reach it.
+        if floor_y_top is not None:
+            goal_tol = getattr(cfg, "GOAL_TOLERANCE_PX", 25)
+            on_floor = [c for c in candidates
+                        if c["end"][1] >= floor_y_top
+                        or math.dist(c["end"], goal) <= goal_tol]
+            if on_floor:
+                candidates = on_floor  # keep originals if ALL would be filtered
+
         costs = [
             compute_cost(
                 simulate_trajectory(pos, c, valid_boxes, image.shape),

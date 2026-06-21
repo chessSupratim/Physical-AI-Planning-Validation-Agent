@@ -54,7 +54,7 @@
 
   Ready to proceed to Step 0 (environment setup) whenever you give the go-ahead.
 
-✻ Worked for 1m 29s
+✻ Crunched for 1m 29s
 
 ❯ Proceed with Step 0                                                           
 
@@ -153,7 +153,7 @@
   ---
   Ready for Step 1 — Project skeleton & config. Say the word to proceed.
 
-✻ Cooked for 3m 53s
+✻ Brewed for 3m 53s
 
 ! git add.                                                                      
   ⎿  git: 'add.' is not a git command. See 'git --help'.
@@ -597,7 +597,7 @@
   Ready for Step 2 — CLI navigation core, both modes headless (the heart of the
   system). Say the word to proceed.
 
-✻ Crunched for 2m 30s
+✻ Churned for 2m 30s
 
 ! git add .                                                                     
   ⎿  warning: in the working copy of 'app.py', LF will be replaced by CRLF
@@ -1659,7 +1659,7 @@
   ---
   Ready for Step 3 — Click mode UI in Streamlit. Say the word to proceed.
 
-✻ Baked for 3m 23s
+✻ Cooked for 3m 23s
 
 ! git add .                                                                     
   ⎿  warning: in the working copy of 'core.py', LF will be replaced by CRLF
@@ -2020,7 +2020,7 @@
   server is still running in the background; kill it with Ctrl+C in your
   terminal when done testing. Say the word to proceed with Step 4.
 
-✻ Crunched for 3m 58s
+✻ Baked for 3m 58s
 
 ● Background command "Start Streamlit and show the startup banner" failed with
 exit code 255
@@ -2061,7 +2061,7 @@ exit code 255
   Step 3 is complete. Say the word to proceed with Step 4 — Object detector 
   localization (OWL-ViT).
 
-✻ Cooked for 40s
+✻ Brewed for 40s
 
 ※ recap: Physical AI Planning Agent — building a validated hop-by-hop trajectory planner with animated GIF output. Steps 0-3 are done (env, skeleton, CLI core, Streamlit UI). Next: proceed with Step 4 (OWL-ViT object detector localization). (disable recaps in /config)
 
@@ -2852,4 +2852,1748 @@ exit code 255
   Ready for Step 5 — Direction goals + misspelling tolerance. Say the word to
   proceed.
 
-✻ Sautéed for 10m 58s
+✻ Crunched for 10m 58s
+
+❯ /export conversation_history.md                                               
+  ⎿  Conversation exported to: D:\Projects\Project_DL\conversation_history.md
+! git add .                                                                     
+  ⎿  warning: in the working copy of 'config.py', LF will be replaced by CR
+     LF the next time Git touches it
+     warning: in the working copy of 'localization/detector.py', LF will be
+     … +7 lines (ctrl+o to expand)
+
+! git commit -m "Step 4 completed"                                              
+  ⎿  [main 29eb595] Step 4 completed
+      5 files changed, 3131 insertions(+), 26 deletions(-)
+      create mode 100644 conversation_history.md
+
+❯ Proceed with Step 5                                                           
+
+● Step 5 is focused: implement localization/heuristic.py with misspelling
+  tolerance. The router already calls goal_to_pixel — it just needs to stop
+  raising NotImplementedError.
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(localization\heuristic.py)
+  ⎿  Added 78 lines, removed 14 lines
+       1 -"""Map direction phrases to pixel coordinates — deterministic, 
+         -no model needed."""                                            
+       1 +"""Map direction phrases to pixel coordinates — deterministic, 
+         +no model needed.                                               
+       2 +                                                               
+       3 +Pixel layout (image coords: y increases downward):             
+       4 +  top-left     (w/4, h/4)   |  top-center  (cx, h/4)  |  top-ri
+         +ght     (3w/4, h/4)                                            
+       5 +  center-left  (w/4,  cy)   |  center      (cx,  cy)  |  center
+         +-right  (3w/4,  cy)                                            
+       6 +  bottom-left  (w/4, 3h/4)  |  bot-center  (cx, 3h/4) |  bottom
+         +-right  (3w/4, 3h/4)                                           
+       7 +"""                                                            
+       8  from __future__ import annotations
+       9  from typing import Tuple
+      10  
+       5 -# Canonical direction tokens and their aliases (misspelling-tol
+         -erant)                                                         
+       6 -_ALIASES = {                                                   
+       7 -    "top":    ["top", "upper", "up"],                          
+       8 -    "bottom": ["bottom", "lower", "down", "buttom", "botton"], 
+       9 -    "left":   ["left", "lft"],                                 
+      10 -    "right":  ["right", "rght"],                               
+      11 -    "center": ["center", "centre", "middle"],                  
+      11 +# Word-level alias table: raw token → canonical keyword        
+      12 +# Covers common misspellings, synonyms, and phrase fragments   
+      13 +_WORD_MAP: dict[str, str] = {                                  
+      14 +    # top synonyms / misspellings                              
+      15 +    "upper":  "top",                                           
+      16 +    "above":  "top",                                           
+      17 +    "up":     "top",                                           
+      18 +    "tpo":    "top",                                           
+      19 +    "tp":     "top",                                           
+      20 +    # bottom synonyms / misspellings                           
+      21 +    "lower":  "bottom",                                        
+      22 +    "below":  "bottom",                                        
+      23 +    "down":   "bottom",                                        
+      24 +    "buttom": "bottom",                                        
+      25 +    "botton": "bottom",                                        
+      26 +    "bottm":  "bottom",                                        
+      27 +    "bttom":  "bottom",                                        
+      28 +    "bot":    "bottom",                                        
+      29 +    # left misspellings                                        
+      30 +    "lft":    "left",                                          
+      31 +    "lef":    "left",                                          
+      32 +    # right misspellings                                       
+      33 +    "rght":   "right",                                         
+      34 +    "rgt":    "right",                                         
+      35 +    "ight":   "right",                                         
+      36 +    # center synonyms                                          
+      37 +    "centre": "center",                                        
+      38 +    "middle": "center",                                        
+      39 +    "mid":    "center",                                        
+      40  }
+      41  
+      42 +# Punctuation to strip before tokenising                       
+      43 +_STRIP = str.maketrans("", "", "-_,.")                         
+      44  
+      15 -def goal_to_pixel(direction: str, image_shape: Tuple[int, int])
+         - -> Tuple[int, int]:                                           
+      16 -    """Return (x, y) pixel for a direction phrase given image (
+         -H, W, ...)."""                                                 
+      17 -    raise NotImplementedError                                  
+      45  
+      46 +def _normalise(phrase: str) -> str:                            
+      47 +    """Lowercase, strip punctuation, apply alias table; return 
+         +canonical tokens string."""                                    
+      48 +    tokens = phrase.lower().translate(_STRIP).split()          
+      49 +    return " ".join(_WORD_MAP.get(t, t) for t in tokens)       
+      50  
+      20 -def _normalise(direction: str) -> str:                         
+      21 -    """Lowercase + alias-expand a direction phrase."""         
+      22 -    raise NotImplementedError                                  
+      51 +                                                               
+      52 +def goal_to_pixel(direction: str, image_shape: tuple) -> Tuple[
+         +int, int]:                                                     
+      53 +    """Return (x, y) pixel for a direction phrase given image s
+         +hape (H, W[, C]).                                              
+      54 +                                                               
+      55 +    Misspelling-tolerant via _normalise.  Unknown phrases defau
+         +lt to image centre.                                            
+      56 +    """                                                        
+      57 +    h, w = image_shape[:2]                                     
+      58 +    cx, cy = w // 2, h // 2                                    
+      59 +                                                               
+      60 +    n = _normalise(direction)                                  
+      61 +                                                               
+      62 +    has_top    = "top"    in n.split()                         
+      63 +    has_bottom = "bottom" in n.split()                         
+      64 +    has_left   = "left"   in n.split()                         
+      65 +    has_right  = "right"  in n.split()                         
+      66 +    has_center = "center" in n.split()                         
+      67 +                                                               
+      68 +    # "corner" without a vertical qualifier → treat as top (per
+         + SPEC §6)                                                      
+      69 +    if "corner" in n and not has_top and not has_bottom:       
+      70 +        has_top = True                                         
+      71 +                                                               
+      72 +    # Diagonals                                                
+      73 +    if has_top    and has_left:  return (w // 4,     h // 4)   
+      74 +    if has_top    and has_right: return (3 * w // 4, h // 4)   
+      75 +    if has_bottom and has_left:  return (w // 4,     3 * h // 4
+         +)                                                              
+      76 +    if has_bottom and has_right: return (3 * w // 4, 3 * h // 4
+         +)                                                              
+      77 +                                                               
+      78 +    # Cardinals                                                
+      79 +    if has_top:    return (cx,         h // 4)                 
+      80 +    if has_bottom: return (cx,         3 * h // 4)             
+      81 +    if has_left:   return (w // 4,     cy)                     
+      82 +    if has_right:  return (3 * w // 4, cy)                     
+      83 +    if has_center: return (cx,         cy)                     
+      84 +                                                               
+      85 +    # Fallback: image centre (logged by caller)                
+      86 +    return (cx, cy)                                            
+
+● Now run the acceptance tests inline — no temp file needed:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 16/16. Now verify the router routes direction vs object correctly end-to-end:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Direction routing worked perfectly: buttom left → (346, 851) = exact (w//4, 
+  3*h//4). The crash is the → unicode character in router.py hitting Windows
+  console encoding — same issue as before. Fix it:
+
+● Update(localization\router.py)
+  ⎿  Added 1 line, removed 1 line
+      37              print(f"[router] No detection for '{value}' (thresh
+          old={threshold})")
+      38              return None
+      39  
+      40 -        print(f"[router] '{value}' → center={det['center']}  " 
+      40 +        print(f"[router] '{value}' -> center={det['center']}  "
+      41                f"score={det['score']:.3f}  t={det['elapsed_s']}s
+          ")
+      42  
+      43          center = det["center"]
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both routing paths pass. Step 5 is complete.
+
+  ---
+  Step 5 — Done
+
+  What was implemented (localization/heuristic.py):
+  - _normalise(phrase) — lowercases, strips punctuation, applies a 16-entry
+  alias table covering common misspellings (buttom/botton/bottm, lft, rght, tpo)
+  and synonyms (upper→top, lower→bottom, below→bottom, middle/centre→center)
+  - goal_to_pixel(direction, image_shape) — priority-ordered matching: diagonals
+  → cardinals → center → fallback (image center); corner without a vertical
+  qualifier defaults to top per SPEC §6
+
+  Acceptance — all green:
+  - [x] 16/16 direction phrases correct including buttom left, lower left, left 
+  below corner, tpo right, left corner
+  - [x] direction field routed → heuristic: buttom left → (346, 851) = exact
+  (w/4, 3h/4)
+  - [x] object field routed → detector+HSV: red block → (1069, 816), verify PASS
+  - [x] Both in same router call — no cross-contamination
+
+  ---
+  Ready for Step 6 — LLM intent parser (Mode A language understanding). Say the
+  word to proceed.
+
+✻ Churned for 2m 20s
+
+! git add .                                                                     
+  ⎿  warning: in the working copy of 'localization/heuristic.py', LF will b
+     e replaced by CRLF the next time Git touches it
+     warning: in the working copy of 'localization/router.py', LF will be r
+     eplaced by CRLF the next time Git touches it
+
+! git commit -m "Step 5 completed"                                              
+  ⎿  [main 305a27d] Step 5 completed
+      2 files changed, 79 insertions(+), 15 deletions(-)
+
+❯ Proceed with Step 6                                                           
+
+● Step 6 needs three things: vlm/api_backend.py (Gemini + Claude),
+  input/intent_parser.py (LLM call + keyword fallback), and wiring both into
+  main.py and app.py. Let me read the current stubs first.
+
+  Read 3 files (ctrl+o to expand)
+  ⎿  Read localization\router.py (70 lines)
+  ⎿  Read config.py (30 lines)
+  ⎿  Read localization\hsv_verify.py (100 lines)
+  ⎿  Read app.py (260 lines)
+  ⎿  Read C:\Users\SUPRAT~1\AppData\Local\Temp\claude\D--Projects-Project-DL\50e
+     16680-4d7a-4dd3-97ac-e0a7b8a4803e\tasks\b8j6vy6o7.output (20 lines)
+
+● Now I have all the context needed. Implementing all three files in parallel:
+
+● Write(vlm\api_backend.py)
+  ⎿  Error writing file
+
+  Read 1 file (ctrl+o to expand)
+● Write(vlm\api_backend.py)
+  ⎿  Added 72 lines, removed 3 lines
+       1  """Unified VLM / LLM backend — routes to Gemini or Claude based
+           on cfg.VLM_BACKEND."""
+       2  from __future__ import annotations
+       3 +import io                                                      
+       4 +import os                                                      
+       5  from typing import Optional
+       6 +                                                               
+       7  import numpy as np
+       8 +from dotenv import load_dotenv                                 
+       9  
+      10 +load_dotenv()                                                  
+      11  
+      12 +                                                               
+      13  def ask_vlm(prompt: str, cfg, image: Optional[np.ndarray] = Non
+          e) -> str:
+      14      """Send `prompt` (+ optional image) to the configured backe
+          nd; return text response."""
+       9 -    raise NotImplementedError                                  
+      15 +    backend = getattr(cfg, "VLM_BACKEND", "gemini")            
+      16 +    model   = getattr(cfg, "GEMINI_MODEL", "gemini-2.0-flash-li
+         +te")                                                           
+      17  
+      18 +    if backend == "gemini":                                    
+      19 +        return _ask_gemini(prompt, model, image)               
+      20 +    if backend == "claude":                                    
+      21 +        return _ask_claude(prompt, image)                      
+      22 +    raise ValueError(f"Unknown VLM_BACKEND: {backend!r}  (expec
+         +ted 'gemini' or 'claude')")                                    
+      23  
+      24 +                                                               
+      25 +# ── Gemini ───────────────────────────────────────────────────
+         +────────────────                                               
+      26 +                                                               
+      27  def _ask_gemini(prompt: str, model: str,
+      28                  image: Optional[np.ndarray] = None) -> str:
+      14 -    raise NotImplementedError                                  
+      29 +    from google import genai                                   
+      30  
+      31 +    api_key = os.getenv("GEMINI_API_KEY", "")                  
+      32 +    if not api_key:                                            
+      33 +        raise RuntimeError("GEMINI_API_KEY not set in .env")   
+      34  
+      35 +    client = genai.Client(api_key=api_key)                     
+      36 +                                                               
+      37 +    if image is not None:                                      
+      38 +        import cv2                                             
+      39 +        from PIL import Image as PILImage                      
+      40 +        pil_img = PILImage.fromarray(cv2.cvtColor(image, cv2.CO
+         +LOR_BGR2RGB))                                                  
+      41 +        contents = [pil_img, prompt]                           
+      42 +    else:                                                      
+      43 +        contents = prompt                                      
+      44 +                                                               
+      45 +    response = client.models.generate_content(model=model, cont
+         +ents=contents)                                                 
+      46 +    return response.text                                       
+      47 +                                                               
+      48 +                                                               
+      49 +# ── Claude ───────────────────────────────────────────────────
+         +────────────────                                               
+      50 +                                                               
+      51  def _ask_claude(prompt: str, image: Optional[np.ndarray] = None
+          ) -> str:
+      18 -    raise NotImplementedError                                  
+      52 +    import anthropic                                           
+      53 +    import base64                                              
+      54 +    import cv2                                                 
+      55 +    from PIL import Image as PILImage                          
+      56 +                                                               
+      57 +    api_key = os.getenv("ANTHROPIC_API_KEY", "")               
+      58 +    if not api_key:                                            
+      59 +        raise RuntimeError("ANTHROPIC_API_KEY not set in .env")
+      60 +                                                               
+      61 +    client = anthropic.Anthropic(api_key=api_key)              
+      62 +                                                               
+      63 +    if image is not None:                                      
+      64 +        pil_img = PILImage.fromarray(cv2.cvtColor(image, cv2.CO
+         +LOR_BGR2RGB))                                                  
+      65 +        buf = io.BytesIO()                                     
+      66 +        pil_img.save(buf, format="PNG")                        
+      67 +        img_b64 = base64.b64encode(buf.getvalue()).decode()    
+      68 +        content = [                                            
+      69 +            {                                                  
+      70 +                "type": "image",                               
+      71 +                "source": {                                    
+      72 +                    "type":       "base64",                    
+      73 +                    "media_type": "image/png",                 
+      74 +                    "data":       img_b64,                     
+      75 +                },                                             
+      76 +            },                                                 
+      77 +            {"type": "text", "text": prompt},                  
+      78 +        ]                                                      
+      79 +    else:                                                      
+      80 +        content = prompt                                       
+      81 +                                                               
+      82 +    message = client.messages.create(                          
+      83 +        model="claude-haiku-4-5-20251001",                     
+      84 +        max_tokens=512,                                        
+      85 +        messages=[{"role": "user", "content": content}],       
+      86 +    )                                                          
+      87 +    return message.content[0].text                             
+
+● Write(input\intent_parser.py)
+  ⎿  Error writing file
+
+● Update(input\intent_parser.py)
+  ⎿  File must be read first
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(input\intent_parser.py)
+  ⎿  Added 121 lines, removed 5 lines
+        6  The LLM never returns pixel coordinates.
+        7  """
+        8  from __future__ import annotations
+        9 +import json                                                   
+       10 +import re                                                     
+       11  from typing import Optional
+       12  
+       13 +# ── LLM prompt ──────────────────────────────────────────────
+          +─────────────────                                             
+       14  
+       12 -def parse_intent(instruction: str, session_context: Optional[d
+          -ict] = None) -> dict:                                         
+       13 -    """Return {source: {type, value}, target: {type, value}} f
+          -rom a raw instruction."""                                     
+       14 -    raise NotImplementedError                                 
+       15 +_PROMPT = """\                                                
+       16 +You are a structured intent extractor for a physical robot mov
+          +ement system.                                                 
+       17  
+       18 +Given a natural-language instruction about moving an object or
+          + agent in an image,                                           
+       19 +extract SOURCE (where it starts) and TARGET (where it should g
+          +o).                                                           
+       20  
+       21 +Return ONLY valid JSON - no markdown, no explanation, no extra
+          + text:                                                        
+       22 +{{                                                            
+       23 +  "source": {{"type": "direction|object|memory", "value": "...
+          +"}},                                                          
+       24 +  "target": {{"type": "direction|object|memory", "value": "...
+          +"}}                                                           
+       25 +}}                                                            
+       26 +                                                              
+       27 +Type rules:                                                   
+       28 +- "direction" - a spatial region phrase: "top left", "bottom r
+          +ight", "center", "left side"                                  
+       29 +- "object"    - a named physical thing to locate: "bench", "ro
+          +und red block", "chair"                                       
+       30 +- "memory"    - refers to a prior/current position: "current p
+          +osition", "it", "there", "back"                               
+       31 +                                                              
+       32 +Guidelines:                                                   
+       33 +- Prefer direction over object for the SOURCE when a location 
+          +is stated explicitly                                          
+       34 +  (e.g. "the robot is in the left corner" -> source type=direc
+          +tion, value="left corner")                                    
+       35 +- Use the most descriptive object name possible; include colou
+          +r and shape                                                   
+       36 +- NEVER return pixel coordinates                              
+       37 +- If only a TARGET is mentioned (e.g. "go to the bench"), set 
+          +source to                                                     
+       38 +  {{"type": "memory", "value": "current position"}}           
+       39 +{context_block}                                               
+       40 +Instruction: {instruction}"""                                 
+       41 +                                                              
+       42 +                                                              
+       43 +# ── public API ──────────────────────────────────────────────
+          +─────────────────                                             
+       44 +                                                              
+       45 +def parse_intent(instruction: str, cfg,                       
+       46 +                 session_context: Optional[dict] = None) -> di
+          +ct:                                                           
+       47 +    """Return {source, target} parsed from instruction.       
+       48 +                                                              
+       49 +    Falls back to _keyword_fallback if the LLM is unavailable.
+       50 +    """                                                       
+       51 +    context_block = ""                                        
+       52 +    if session_context:                                       
+       53 +        context_block = f"\nSession context: {json.dumps(sessi
+          +on_context)}\n"                                               
+       54 +                                                              
+       55 +    prompt = _PROMPT.format(instruction=instruction,          
+       56 +                            context_block=context_block)      
+       57 +                                                              
+       58 +    if getattr(cfg, "USE_LLM_PARSER", True):                  
+       59 +        try:                                                  
+       60 +            from vlm.api_backend import ask_vlm               
+       61 +            raw    = ask_vlm(prompt, cfg)                     
+       62 +            result = _extract_json(raw)                       
+       63 +            _validate(result)                                 
+       64 +            return result                                     
+       65 +        except Exception as exc:                              
+       66 +            print(f"[intent_parser] LLM failed ({exc!r}), usin
+          +g keyword fallback")                                          
+       67 +                                                              
+       68 +    return _keyword_fallback(instruction)                     
+       69 +                                                              
+       70 +                                                              
+       71 +# ── JSON extraction + validation ────────────────────────────
+          +─────────────────                                             
+       72 +                                                              
+       73 +def _extract_json(text: str) -> dict:                         
+       74 +    """Strip markdown fences and return the first JSON object 
+          +found."""                                                     
+       75 +    text = re.sub(r"```(?:json)?\s*", "", text).strip()       
+       76 +    match = re.search(r"\{.*\}", text, re.DOTALL)             
+       77 +    if not match:                                             
+       78 +        raise ValueError(f"No JSON object in LLM response: {te
+          +xt[:200]!r}")                                                 
+       79 +    return json.loads(match.group())                          
+       80 +                                                              
+       81 +                                                              
+       82 +def _validate(parsed: dict) -> None:                          
+       83 +    for key in ("source", "target"):                          
+       84 +        if key not in parsed:                                 
+       85 +            raise ValueError(f"Missing key: {key!r}")         
+       86 +        field = parsed[key]                                   
+       87 +        if "type" not in field or "value" not in field:       
+       88 +            raise ValueError(f"Field {key!r} missing type/valu
+          +e: {field}")                                                  
+       89 +        if field["type"] not in ("direction", "object", "memor
+          +y"):                                                          
+       90 +            raise ValueError(f"Unknown type {field['type']!r}"
+          +)                                                             
+       91 +                                                              
+       92 +                                                              
+       93 +# ── keyword fallback ────────────────────────────────────────
+          +─────────────────                                             
+       94 +                                                              
+       95 +_DIR_TOKENS = {                                               
+       96 +    "left", "right", "top", "bottom", "upper", "lower",       
+       97 +    "center", "centre", "middle", "above", "below",           
+       98 +    "corner", "up", "down", "side",                           
+       99 +    # common misspellings                                     
+      100 +    "buttom", "botton", "lft", "rght", "tpo",                 
+      101 +}                                                             
+      102 +                                                              
+      103 +_FILLER = {                                                   
+      104 +    "the", "a", "an", "is", "in", "at", "on", "of", "and",    
+      105 +    "move", "go", "should", "needs", "navigate", "robot",     
+      106 +    "object", "agent", "it", "to", "from",                    
+      107 +}                                                             
+      108 +                                                              
+      109 +                                                              
+      110  def _keyword_fallback(instruction: str) -> dict:
+       18 -    """Deterministic keyword parser used when the LLM is unava
+          -ilable (logged as degraded)."""                               
+       19 -    raise NotImplementedError                                 
+      111 +    """Deterministic keyword parser used when LLM is unavailab
+          +le (logged as degraded)."""                                   
+      112 +    t = instruction.lower()                                   
+      113 +    parts = re.split(r"\bto\b", t, maxsplit=1)                
+      114 +                                                              
+      115 +    if len(parts) == 2:                                       
+      116 +        src_raw, tgt_raw = parts                              
+      117 +    else:                                                     
+      118 +        src_raw, tgt_raw = "", t                              
+      119 +                                                              
+      120 +    src_field = _classify(src_raw) if src_raw.strip() else {  
+      121 +        "type": "memory", "value": "current position"         
+      122 +    }                                                         
+      123 +    tgt_field = _classify(tgt_raw)                            
+      124 +    return {"source": src_field, "target": tgt_field}         
+      125 +                                                              
+      126 +                                                              
+      127 +def _classify(text: str) -> dict:                             
+      128 +    """Return a {type, value} field from a text fragment."""  
+      129 +    words = text.lower().split()                              
+      130 +    dir_words = [w for w in words if w in _DIR_TOKENS]        
+      131 +    if dir_words:                                             
+      132 +        return {"type": "direction", "value": " ".join(dir_wor
+          +ds)}                                                          
+      133 +    obj_words = [w for w in words if w not in _FILLER and len(
+          +w) > 1]                                                       
+      134 +    value = " ".join(obj_words) if obj_words else text.strip()
+      135 +    return {"type": "object", "value": value}                 
+
+● Now update main.py Mode A to use the real parser + router:
+
+● Update(main.py)
+  ⎿  File must be read first
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(main.py)
+  ⎿  Added 22 lines, removed 6 lines
+      54          print(f"[Mode B] start={start_pos}  goal={goal_pos}")
+      55  
+      56      elif args.goal:
+      57 -        # Mode A: prompt (localization stubbed until Steps 4–6)
+      58 -        print("[Mode A] Localization not yet implemented — usin
+         -g image-quadrant stub.")                                       
+      59 -        h, w = image.shape[:2]                                 
+      60 -        start_pos = (w // 4, h // 2)                           
+      61 -        goal_pos  = (3 * w // 4, h // 2)                       
+      62 -        print(f"[Mode A stub] start={start_pos}  goal={goal_pos
+         -}")                                                            
+      57 +        # Mode A: full prompt pipeline — LLM intent parser + lo
+         +calization router                                              
+      58 +        from input.intent_parser import parse_intent           
+      59 +        from localization.router import resolve                
+      60  
+      61 +        intent = parse_intent(args.goal, config)               
+      62 +        print(f"[Mode A] intent: {intent}")                    
+      63 +                                                               
+      64 +        start_pos = resolve(intent["source"], image, cfg=config
+         +)                                                              
+      65 +        goal_pos  = resolve(intent["target"], image, cfg=config
+         +)                                                              
+      66 +                                                               
+      67 +        if start_pos is None:                                  
+      68 +            h, w = image.shape[:2]                             
+      69 +            start_pos = (w // 2, h // 2)                       
+      70 +            print(f"[Mode A] source unresolved — defaulting to 
+         +image centre {start_pos}")                                     
+      71 +                                                               
+      72 +        if goal_pos is None:                                   
+      73 +            print("[Mode A] target unresolved — cannot proceed"
+         +)                                                              
+      74 +            sys.exit(1)                                        
+      75 +                                                               
+      76 +        start_pos = validate_click(start_pos, image.shape)     
+      77 +        goal_pos  = validate_click(goal_pos,  image.shape)     
+      78 +        print(f"[Mode A] start={start_pos}  goal={goal_pos}")  
+      79 +                                                               
+      80      else:
+      81          print("[ERROR] Provide --start X,Y --goal-xy X,Y  (Mode
+           B)  "
+      82                "or --goal '...'  (Mode A)")
+
+● Now update app.py Mode A UI — replace the placeholder stub with the actual
+  prompt UI:
+
+● Update(app.py)
+  ⎿  Added 1 line, removed 1 line
+      252      if mode == "click":
+      253          _click_mode(image)
+      254      else:
+      255 -        st.info("Prompt mode (Mode A) is not yet available — i
+          -t will be wired up in Step 6.")                               
+      255 +        _prompt_mode(image)                                   
+      256  
+      257  
+      258  if __name__ == "__main__":
+
+● Now also update the radio label for prompt mode and add the _prompt_mode
+  function. First the radio label:
+
+● Update(app.py)
+  ⎿  Added 1 line, removed 1 line
+      222          "Input mode",
+      223          options=["click", "prompt"],
+      224          format_func=lambda m: "Click locations (Mode B — click
+            start & goal)" if m == "click"
+      225 -                              else "Describe with prompt (Mode
+          - A — coming in Step 6)",                                      
+      225 +                              else "Describe with prompt (Mode
+          + A — LLM intent parser)",                                     
+      226          horizontal=True,
+      227          index=0 if config.DEFAULT_INPUT_MODE == "click" else 1
+           ,
+      228      )
+
+● Now add the _prompt_mode function — insert it before # ── main ──────:
+
+● Update(app.py)
+  ⎿  Added 60 lines
+      209          _show_results(st.session_state.run_result)
+      210  
+      211  
+      212 +# ── prompt mode UI (Mode A) ─────────────────────────────────
+          +──────────────────                                            
+      213 +                                                              
+      214 +def _prompt_mode(image: np.ndarray) -> None:                  
+      215 +    st.info(                                                  
+      216 +        "**Mode A — Prompt**: Type a natural-language instruct
+          +ion. "                                                        
+      217 +        "The LLM will extract start and goal, then the detecto
+          +r/heuristic will resolve them to pixels."                     
+      218 +    )                                                         
+      219 +                                                              
+      220 +    instruction = st.text_input(                              
+      221 +        "Instruction",                                        
+      222 +        placeholder='e.g. "move the red block to the bottom le
+          +ft corner"',                                                  
+      223 +        key="prompt_instruction",                             
+      224 +    )                                                         
+      225 +                                                              
+      226 +    col_run, col_rst = st.columns([2, 1])                     
+      227 +    with col_run:                                             
+      228 +        run_btn = st.button("Parse & Run", type="primary",    
+      229 +                            disabled=not instruction.strip()) 
+      230 +    with col_rst:                                             
+      231 +        if st.button("Reset", key="prompt_reset"):            
+      232 +            st.session_state.run_result = None                
+      233 +            st.rerun()                                        
+      234 +                                                              
+      235 +    if run_btn and instruction.strip():                       
+      236 +        from input.intent_parser import parse_intent          
+      237 +        from localization.router import resolve               
+      238 +        from input.click_input import validate_click as _vc   
+      239 +                                                              
+      240 +        with st.spinner("Parsing instruction…"):              
+      241 +            intent = parse_intent(instruction, config,        
+      242 +                                  session_context=st.session_s
+          +tate.get("session_ctx"))                                      
+      243 +                                                              
+      244 +        st.write("**Parsed intent:**", intent)                
+      245 +                                                              
+      246 +        with st.spinner("Resolving locations…"):              
+      247 +            start_pos = resolve(intent["source"], image, cfg=c
+          +onfig)                                                        
+      248 +            goal_pos  = resolve(intent["target"], image, cfg=c
+          +onfig)                                                        
+      249 +                                                              
+      250 +        if start_pos is None:                                 
+      251 +            h, w = image.shape[:2]                            
+      252 +            start_pos = (w // 2, h // 2)                      
+      253 +            st.warning(f"Source unresolved — using image centr
+          +e {start_pos}")                                               
+      254 +                                                              
+      255 +        if goal_pos is None:                                  
+      256 +            st.error("Could not resolve target location. Try a
+          + more specific instruction.")                                 
+      257 +            return                                            
+      258 +                                                              
+      259 +        start_pos = _vc(start_pos, image.shape)               
+      260 +        goal_pos  = _vc(goal_pos,  image.shape)               
+      261 +        st.write(f"**Start:** {start_pos}   **Goal:** {goal_po
+          +s}")                                                          
+      262 +                                                              
+      263 +        with st.spinner("Planning trajectory…"):              
+      264 +            result = run_pipeline(image, start_pos, goal_pos, 
+          +config)                                                       
+      265 +                                                              
+      266 +        st.session_state.run_result = result                  
+      267 +                                                              
+      268 +    if st.session_state.run_result is not None:               
+      269 +        _show_results(st.session_state.run_result)            
+      270 +                                                              
+      271 +                                                              
+      272  # ── main ────────────────────────────────────────────────────
+           ──────────────────
+      273  
+      274  def main() -> None:
+
+● Now run the acceptance test — Mode A CLI with a direction goal (fast, no
+  detector needed), then one with object localization:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The Gemini free tier is rate-limited, so keyword fallback is running. Cases 1
+  and 2 parse perfectly — but "go to the top right" and "navigate to the chair"
+  wrongly put "go"/"navigate" as the source object. Fix _classify so an
+  all-filler source returns memory instead:
+
+● Update(input\intent_parser.py)
+  ⎿  Added 3 lines, removed 2 lines
+      131      if dir_words:
+      132          return {"type": "direction", "value": " ".join(dir_wor
+           ds)}
+      133      obj_words = [w for w in words if w not in _FILLER and len(
+           w) > 1]
+      134 -    value = " ".join(obj_words) if obj_words else text.strip()
+      135 -    return {"type": "object", "value": value}                 
+      134 +    if not obj_words:                                         
+      135 +        return {"type": "memory", "value": "current position"}
+      136 +    return {"type": "object", "value": " ".join(obj_words)}   
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Keyword fallback 5/5. Now run the full Mode A CLI end-to-end with a
+  direction-only goal (no detector needed, fast):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Full end-to-end works — 7 hops, reached_goal: True. The →/— display quirks in
+  the console are cosmetic (code runs fine). Let me clean those up for console
+  hygiene:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(localization\router.py)
+  ⎿  Added 1 line, removed 1 line
+      62              pos = session_context.get("current_pos") or session
+          _context.get("start_pos")
+      63              if pos:
+      64                  return tuple(pos)
+      65 -        print(f"[router] Memory ref '{value}' — no session cont
+         -ext available")                                                
+      65 +        print(f"[router] Memory ref '{value}' - no session cont
+         +ext available")                                                
+      66          return None
+      67  
+      68      print(f"[router] Unknown field type: {ftype!r}")
+● Update(main.py)
+  ⎿  Added 1 line, removed 1 line
+      67          if start_pos is None:
+      68              h, w = image.shape[:2]
+      69              start_pos = (w // 2, h // 2)
+      70 -            print(f"[Mode A] source unresolved — defaulting to 
+         -image centre {start_pos}")                                     
+      70 +            print(f"[Mode A] source unresolved - defaulting to 
+         +image centre {start_pos}")                                     
+      71  
+      72          if goal_pos is None:
+      73              print("[Mode A] target unresolved — cannot proceed"
+          )
+
+● Step 6 is complete.
+
+  ---
+  Step 6 — Done
+
+  What was implemented:
+
+  vlm/api_backend.py — ask_vlm(prompt, cfg, image=None) routes to Gemini
+  (google-genai Client API) or Claude (anthropic SDK). Loads API keys from .env
+  via python-dotenv. Supports optional image argument for future reasoning step
+  (Step 7).
+
+  input/intent_parser.py — parse_intent(instruction, cfg, session_context=None)
+  calls ask_vlm with a structured prompt that asks for strict JSON {source, 
+  target} with types direction|object|memory. Validates the schema. Falls back
+  to _keyword_fallback on any LLM error. The keyword fallback splits on "to",
+  classifies each fragment, and returns memory/current position when the source
+  contains only filler words.
+
+  main.py — Mode A fully wired: intent parser → router resolves both fields →
+  run_pipeline. Source=None falls back to image centre; goal=None aborts with an
+  error.
+
+  app.py — _prompt_mode() UI: text input → "Parse & Run" → shows parsed intent +
+  resolved positions → runs pipeline → shows results panel.
+
+  Acceptance — all green:
+  - [x] Keyword fallback 5/5: move red block to bottom left, robot in left 
+  corner → bench, go to top right, navigate to chair, misspelled directions
+  - [x] Full CLI run: "move to the bottom left" → intent parsed →
+  source=image_centre, goal=(346,851) → 7 hops → reached_goal: True
+  - [x] All outputs generated (GIF, trail, log)
+  - [x] LLM path implemented (Gemini free tier currently rate-limited; fallback
+  handles gracefully)
+
+  Note on Gemini quota: The free tier daily quota is exhausted from testing.
+  When the quota resets (or a paid key is used), the LLM path will kick in and
+  parse more complex phrasings. The keyword fallback is solid for all common
+  patterns.
+
+  ---
+  Ready for Step 7 — Mandatory LLM reasoning (every run). Say the word to
+  proceed.
+
+✻ Churned for 6m 17s
+
+! git add .                                                                     
+  ⎿  warning: in the working copy of 'app.py', LF will be replaced by CRLF
+     the next time Git touches it
+     warning: in the working copy of 'input/intent_parser.py', LF will be r
+     … +7 lines (ctrl+o to expand)
+
+! git commit -m "Step 6 completed"                                              
+  ⎿  [main 4c38cd9] Step 6 completed
+      5 files changed, 279 insertions(+), 17 deletions(-)
+
+❯ Proceed with Step 7                                                           
+
+● Let me read the current state of reasoning/explain.py and core.py before
+  implementing:
+
+  Read 2 files (ctrl+o to expand)
+
+● The interface is clear: explain_plan(hop_log, goal, cfg) — I'll add an
+  optional image parameter and wire the real LLM call with retry + deterministic
+  fallback. I'll also update core.py to pass the image.
+
+● Update(reasoning\explain.py)
+  ⎿  Added 89 lines, removed 10 lines
+        1  """MANDATORY LLM reasoning over the hop result, with determini
+           stic fallback.
+        2  
+        3 -Every run must produce a non-empty reasoning string.          
+        4 -Step 7 will wire in the real LLM call; until then explain_plan
+          - returns the fallback.                                        
+        3 +Every run must produce a non-empty reasoning string (SPEC §8):
+        4 +1. Build a compact hop-summary prompt.                        
+        5 +2. Call the LLM via vlm.api_backend.ask_vlm.                  
+        6 +3. Retry once on failure.                                     
+        7 +4. If both attempts fail: emit a deterministic fallback string
+          + (never empty).                                               
+        8  """
+        9  from __future__ import annotations
+        7 -from typing import List                                       
+       10 +import math                                                   
+       11 +from typing import List, Optional                             
+       12  
+       13 +import numpy as np                                            
+       14  
+       10 -def explain_plan(hop_log: List[dict], goal: tuple, cfg) -> str
+          -:                                                             
+       11 -    """Call LLM to explain the trajectory; fall back to determ
+          -inistic string on failure."""                                 
+       12 -    # Step 7 will implement the LLM call here.                
+       15 +_PROMPT_TEMPLATE = """\                                       
+       16 +You are a navigation AI that just completed a path-planning ta
+          +sk. \                                                         
+       17 +Explain what happened in 2-3 clear, natural sentences.        
+       18 +                                                              
+       19 +Navigation summary:                                           
+       20 +  Start position : {start}                                    
+       21 +  Goal position  : {goal}                                     
+       22 +  Reached goal   : {reached}                                  
+       23 +  Total hops     : {n_hops}                                   
+       24 +  Detour hops    : {n_detours}                                
+       25 +                                                              
+       26 +Hop trace (from -> to):                                       
+       27 +{hop_lines}                                                   
+       28 +                                                              
+       29 +Describe: whether the goal was reached, how many steps it took
+          +, \                                                           
+       30 +whether any detours were needed to avoid obstacles, and the ge
+          +neral direction of travel. \                                  
+       31 +Be concise — 2 sentences maximum."""                          
+       32 +                                                              
+       33 +                                                              
+       34 +def explain_plan(hop_log: List[dict],                         
+       35 +                 goal: tuple,                                 
+       36 +                 cfg,                                         
+       37 +                 image: Optional[np.ndarray] = None) -> str:  
+       38 +    """Call LLM to explain the trajectory; fall back to determ
+          +inistic string on failure.                                    
+       39 +                                                              
+       40 +    The reasoning field is NEVER empty (SPEC §8).             
+       41 +    """                                                       
+       42 +    prompt = _build_prompt(hop_log, goal)                     
+       43 +                                                              
+       44 +    for attempt in range(2):                                  
+       45 +        try:                                                  
+       46 +            from vlm.api_backend import ask_vlm               
+       47 +            text = ask_vlm(prompt, cfg, image=image).strip()  
+       48 +            if text:                                          
+       49 +                return text                                   
+       50 +        except Exception as exc:                              
+       51 +            print(f"[reasoning] LLM attempt {attempt + 1} fail
+          +ed: {exc!r}")                                                 
+       52 +                                                              
+       53      return _build_fallback(hop_log, goal)
+       54  
+       55  
+       56 +# ── prompt builder ──────────────────────────────────────────
+          +──────────────────                                            
+       57 +                                                              
+       58 +def _build_prompt(hop_log: List[dict], goal: tuple) -> str:   
+       59 +    n_hops    = len(hop_log)                                  
+       60 +    n_detours = sum(1 for h in hop_log if h.get("detour"))    
+       61 +    start     = tuple(hop_log[0]["from"]) if hop_log else goal
+       62 +                                                              
+       63 +    final_pos = tuple(hop_log[-1]["to"]) if hop_log else goal 
+       64 +    reached   = math.dist(final_pos, goal) <= 25              
+       65 +                                                              
+       66 +    # Keep the trace compact: show at most 8 hops (first 4 + l
+          +ast 4)                                                        
+       67 +    if n_hops <= 8:                                           
+       68 +        shown = list(enumerate(hop_log, 1))                   
+       69 +    else:                                                     
+       70 +        shown = (list(enumerate(hop_log[:4], 1))              
+       71 +                 + [(-1, None)]                               
+       72 +                 + list(enumerate(hop_log[-4:], n_hops - 3))) 
+       73 +                                                              
+       74 +    lines = []                                                
+       75 +    for idx, h in shown:                                      
+       76 +        if h is None:                                         
+       77 +            lines.append(f"  ... ({n_hops - 8} hops omitted)")
+       78 +        else:                                                 
+       79 +            tag = " [DETOUR]" if h.get("detour") else ""      
+       80 +            lines.append(f"  Hop {idx:2d}: {tuple(h['from'])} 
+          +-> {tuple(h['to'])}{tag}")                                    
+       81 +                                                              
+       82 +    return _PROMPT_TEMPLATE.format(                           
+       83 +        start=start,                                          
+       84 +        goal=goal,                                            
+       85 +        reached=reached,                                      
+       86 +        n_hops=n_hops,                                        
+       87 +        n_detours=n_detours,                                  
+       88 +        hop_lines="\n".join(lines),                           
+       89 +    )                                                         
+       90 +                                                              
+       91 +                                                              
+       92 +# ── deterministic fallback ──────────────────────────────────
+          +──────────────────                                            
+       93 +                                                              
+       94  def _build_fallback(hop_log: List[dict], goal: tuple) -> str:
+       17 -    """Deterministic fallback reasoning assembled from hop_log
+          - (never empty)."""                                            
+       18 -    n_hops = len(hop_log)                                     
+       95 +    """Assembled from hop_log — guaranteed non-empty."""      
+       96 +    n_hops    = len(hop_log)                                  
+       97      n_detours = sum(1 for h in hop_log if h.get("detour"))
+       98      if n_hops == 0:
+       21 -        return "Start and goal are within tolerance — no movem
+          -ent needed."                                                  
+       22 -    detour_note = f" with {n_detours} detour(s) around obstacl
+          -es" if n_detours else ""                                      
+       99 +        return "Start and goal are within tolerance - no movem
+          +ent needed."                                                  
+      100 +    detour_note = (f" with {n_detours} detour(s) around obstac
+          +les"                                                          
+      101 +                   if n_detours else "")                      
+      102      return (f"Reached goal in {n_hops} hop(s){detour_note}. "
+      103              f"Target position: {goal}.")
+
+● Now update core.py to pass the image to explain_plan:
+
+● Update(core.py)
+  ⎿  Added 1 line, removed 1 line
+      49      reached_goal = math.dist(final_pos, goal_pos) <= cfg.GOAL_T
+          OLERANCE_PX
+      50  
+      51      # ── reasoning (mandatory) ────────────────────────────────
+          ────────────────
+      52 -    reasoning = explain_plan(hops, goal_pos, cfg)              
+      52 +    reasoning = explain_plan(hops, goal_pos, cfg, image=image) 
+      53  
+      54      # ── visualisations ───────────────────────────────────────
+          ────────────────
+      55      output_paths: dict = {}
+
+● Now test both the deterministic fallback path and the LLM path. First verify
+  the fallback never returns empty:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now run the full pipeline and check the reasoning is populated — Gemini may
+  still be rate-limited so we test that the fallback is used cleanly:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Reasoning populated correctly via fallback. Now test the LLM path and retry
+  logic directly with a mock to verify the retry chain works:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All three paths verified: LLM success on retry, double-fail → fallback, and
+  the fallback is never empty. Step 7 is complete.
+
+  ---
+  Step 7 — Done
+
+  What was implemented (reasoning/explain.py):
+
+  - explain_plan(hop_log, goal, cfg, image=None) — the mandatory entry point.
+  Builds a compact prompt from the hop log (start, goal, N hops, N detours, hop
+  trace with [DETOUR] markers), then:
+    a. Tries ask_vlm(prompt, cfg, image=image) — VLM gets visual context of the
+  actual image
+    b. Retries once on any exception
+    c. Falls back to _build_fallback — guaranteed non-empty deterministic string
+  - _build_prompt — shows ≤8 hops (first 4 + last 4 with omission marker for
+  long runs)
+  - _build_fallback — "Reached goal in N hop(s) with M detour(s)... Target:
+  {goal}" — handles 0-hop edge case
+  - core.py — updated to pass image=image to explain_plan
+
+  Acceptance — all green:
+  - [x] Fallback never empty: 0-hop, 1-hop, 2-hop (with detour) all return
+  non-empty strings
+  - [x] Retry logic: first attempt fails → second attempt returns LLM text →
+  used as reasoning
+  - [x] Double failure → fallback used (2 LLM calls logged, deterministic string
+  returned)
+  - [x] Full CLI run: reached_goal: True, reasoning populated (fallback while
+  Gemini daily quota is exhausted)
+  - [x] Reasoning field written to log.json and displayed in CLI output
+
+  ---
+  Ready for Step 8 — Session context (st.session_state history + positions). Say
+  the word to proceed.
+
+✻ Cooked for 2m 13s
+
+! git add .                                                                     
+  ⎿  warning: in the working copy of 'core.py', LF will be replaced by CRLF
+      the next time Git touches it
+     warning: in the working copy of 'reasoning/explain.py', LF will be rep
+     laced by CRLF the next time Git touches it
+
+! git commit -m "Step 7 completed"                                              
+  ⎿  [main da1341b] Step 7 completed
+      2 files changed, 90 insertions(+), 11 deletions(-)
+
+❯ Proceed with Step 8                                                           
+
+● Let me read the relevant files before implementing:
+
+  Read 2 files (ctrl+o to expand)
+
+● Now I have the full picture. Implementing memory/session.py fully, then wiring
+  it into app.py with sidebar display:
+
+● Update(memory\session.py)
+  ⎿  Added 57 lines, removed 10 lines
+       1 -"""st.session_state helpers: current/start position and run his
+         -tory."""                                                       
+       1 +"""st.session_state helpers: current/start position and run his
+         +tory.                                                          
+       2 +                                                               
+       3 +Keeps a rolling window of the last _MAX_HISTORY runs so that th
+         +e intent                                                       
+       4 +parser can resolve memory references ("go back", "original posi
+         +tion", etc.).                                                  
+       5 +"""                                                            
+       6  from __future__ import annotations
+       3 -from typing import Optional, Tuple                             
+       7  
+       8 +import streamlit as st                                         
+       9  
+      10 +_MAX_HISTORY = 5                                               
+      11 +                                                               
+      12 +_EMPTY_CTX: dict = {                                           
+      13 +    "current_pos": None,                                       
+      14 +    "start_pos":   None,                                       
+      15 +    "last_goal":   None,                                       
+      16 +    "run_count":   0,                                          
+      17 +    "history":     [],                                         
+      18 +}                                                              
+      19 +                                                               
+      20 +                                                               
+      21  def init_session_state() -> None:
+       7 -    """Initialise session_state keys if not already present."""
+       8 -    raise NotImplementedError                                  
+      22 +    """Initialise the session_ctx key in st.session_state if ab
+         +sent."""                                                       
+      23 +    if "session_ctx" not in st.session_state:                  
+      24 +        st.session_state["session_ctx"] = dict(_EMPTY_CTX, hist
+         +ory=[])                                                        
+      25  
+      26  
+      27  def get_context() -> dict:
+      12 -    """Return the current session context dict for the intent p
+         -arser."""                                                      
+      13 -    raise NotImplementedError                                  
+      28 +    """Return session context dict (for intent parser / router)
+         +.                                                              
+      29  
+      30 +    Returns an empty dict when no run has completed yet, so cal
+         +lers can                                                       
+      31 +    check truthiness: `if get_context():`.                     
+      32 +    """                                                        
+      33 +    ctx = st.session_state.get("session_ctx") or {}            
+      34 +    return ctx if ctx.get("current_pos") is not None else {}   
+      35  
+      16 -def update_after_run(final_pos: Tuple[int, int], instruction: s
+         -tr,                                                            
+      17 -                     source: dict, target: dict, result) -> Non
+         -e:                                                             
+      18 -    """Write final position and append to history after a compl
+         -eted run."""                                                   
+      19 -    raise NotImplementedError                                  
+      36 +                                                               
+      37 +def update_after_run(result, instruction: str = "") -> None:   
+      38 +    """Persist final position and run summary after each comple
+         +ted run."""                                                    
+      39 +    ctx = st.session_state.get("session_ctx") or dict(_EMPTY_CT
+         +X, history=[])                                                 
+      40 +                                                               
+      41 +    ctx["current_pos"] = tuple(result.final_pos)               
+      42 +    ctx["start_pos"]   = tuple(result.start_pos)               
+      43 +    ctx["last_goal"]   = tuple(result.goal_pos)                
+      44 +    ctx["run_count"]   = ctx.get("run_count", 0) + 1           
+      45 +                                                               
+      46 +    entry: dict = {                                            
+      47 +        "run":     ctx["run_count"],                           
+      48 +        "start":   tuple(result.start_pos),                    
+      49 +        "goal":    tuple(result.goal_pos),                     
+      50 +        "final":   tuple(result.final_pos),                    
+      51 +        "reached": result.reached_goal,                        
+      52 +        "hops":    len(result.hops),                           
+      53 +    }                                                          
+      54 +    if instruction:                                            
+      55 +        entry["instruction"] = instruction                     
+      56 +                                                               
+      57 +    history: list = list(ctx.get("history") or [])             
+      58 +    history.append(entry)                                      
+      59 +    ctx["history"] = history[-_MAX_HISTORY:]                   
+      60 +                                                               
+      61 +    st.session_state["session_ctx"] = ctx                      
+      62 +                                                               
+      63 +                                                               
+      64 +def clear_context() -> None:                                   
+      65 +    """Reset session context (e.g. when user presses 'Clear his
+         +tory')."""                                                     
+      66 +    st.session_state["session_ctx"] = dict(_EMPTY_CTX, history=
+         +[])                                                            
+● Now wire into app.py. Four changes: import, main() init, _run_pipeline update,
+  _prompt_mode update, and sidebar panel.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app.py)
+  ⎿  Added 1 line
+      17  import config
+      18  from core import run_pipeline
+      19  from input.click_input import validate_click
+      20 +from memory.session import init_session_state, get_context, upd
+         +ate_after_run, clear_context                                   
+      21  
+      22  # Maximum width for the interactive image display (px)
+      23  _MAX_DISPLAY_W = 720
+
+● Update(app.py)
+  ⎿  Added 1 line
+      152      goal  = st.session_state.goal_pos
+      153      with st.spinner("Planning trajectory…"):
+      154          result = run_pipeline(image, start, goal, config)
+      155 +    update_after_run(result)                                  
+      156      st.session_state.run_result = result
+      157      st.session_state.phase      = "done"
+      158      st.rerun()
+
+● Update(app.py)
+  ⎿  Added 1 line, removed 1 line
+      241  
+      242          with st.spinner("Parsing instruction…"):
+      243              intent = parse_intent(instruction, config,
+      244 -                                  session_context=st.session_s
+          -tate.get("session_ctx"))                                      
+      244 +                                  session_context=get_context(
+          +))                                                            
+      245  
+      246          st.write("**Parsed intent:**", intent)
+      247  
+
+● Update(app.py)
+  ⎿  Added 1 line
+      265          with st.spinner("Planning trajectory…"):
+      266              result = run_pipeline(image, start_pos, goal_pos, 
+           config)
+      267  
+      268 +        update_after_run(result, instruction=instruction)     
+      269          st.session_state.run_result = result
+      270  
+      271      if st.session_state.run_result is not None:
+
+● Now wire init_session_state() into main() and add the sidebar panel:
+
+● Update(app.py)
+  ⎿  Added 31 lines
+      274  
+      275  # ── main ────────────────────────────────────────────────────
+           ──────────────────
+      276  
+      277 +def _sidebar_context() -> None:                               
+      278 +    """Sidebar panel showing session history and a clear butto
+          +n."""                                                         
+      279 +    with st.sidebar:                                          
+      280 +        st.header("Session")                                  
+      281 +        ctx = get_context()                                   
+      282 +        if not ctx:                                           
+      283 +            st.caption("No runs yet this session.")           
+      284 +        else:                                                 
+      285 +            st.metric("Runs", ctx.get("run_count", 0))        
+      286 +            st.write(f"**Last final pos:** {ctx.get('current_p
+          +os')}")                                                       
+      287 +            st.write(f"**Last goal:** {ctx.get('last_goal')}")
+      288 +                                                              
+      289 +            history = ctx.get("history") or []                
+      290 +            if history:                                       
+      291 +                with st.expander("Run history", expanded=False
+          +):                                                            
+      292 +                    for h in reversed(history):               
+      293 +                        label = h.get("instruction", f"run {h[
+          +'run']}")                                                     
+      294 +                        reached = "reached" if h["reached"] el
+          +se "stopped"                                                  
+      295 +                        st.write(                             
+      296 +                            f"**#{h['run']}** — {label[:40]}  
+          +\n"                                                           
+      297 +                            f"start {h['start']} -> final {h['
+          +final']}  \n"                                                 
+      298 +                            f"{h['hops']} hops, {reached}"    
+      299 +                        )                                     
+      300 +                                                              
+      301 +        if st.button("Clear history", use_container_width=True
+          +):                                                            
+      302 +            clear_context()                                   
+      303 +            st.rerun()                                        
+      304 +                                                              
+      305 +                                                              
+      306  def main() -> None:
+      307      st.set_page_config(page_title="Physical AI Planning Agent"
+           , layout="wide")
+      308      st.title("Physical AI Planning & Validation Agent")
+      309  
+      310      _init_state()
+      311 +    init_session_state()                                      
+      312 +    _sidebar_context()                                        
+      313  
+      314      # Mode radio
+      315      mode = st.radio(
+
+● Now verify the session module works correctly in a headless unit test (no
+  Streamlit server needed):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● PowerShell struggles with nested quotes in f-strings. Let me write the test to
+  a temp file instead:
+
+● Write(_test_session.py)
+  ⎿  Wrote 77 lines to _test_session.py
+       1 """Headless unit test for memory/session.py — no Streamlit serve
+         r needed."""
+       2 import sys; sys.path.insert(0, ".")
+       4 
+       5 # Provide a minimal st.session_state mock
+       6 import streamlit as st
+       7 st.session_state = types.SimpleNamespace()
+       8 
+         te_after_run, clear_context
+      10 from localization.router import resolve
+     … +80 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The SimpleNamespace doesn't support in operator. Fix the mock in the test:
+
+● Update(_test_session.py)
+  ⎿  Added 10 lines, removed 1 line
+       4  
+       5  # Provide a minimal st.session_state mock
+       6  import streamlit as st
+       7 -st.session_state = types.SimpleNamespace()                     
+       7  
+       8 +class _FakeState(dict):                                        
+       9 +    """Dict that also supports attribute access — matches Strea
+         +mlit SessionState."""                                          
+      10 +    def __getattr__(self, k):                                  
+      11 +        try: return self[k]                                    
+      12 +        except KeyError: raise AttributeError(k)               
+      13 +    def __setattr__(self, k, v): self[k] = v                   
+      14 +    def get(self, k, default=None): return super().get(k, defau
+         +lt)                                                            
+      15 +                                                               
+      16 +st.session_state = _FakeState()                                
+      17 +                                                               
+      18  from memory.session import init_session_state, get_context, upd
+          ate_after_run, clear_context
+      19  from localization.router import resolve
+      20  import numpy as np
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 6 tests pass. Clean up the temp test file:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Step 8 is complete.
+
+  ---
+  Step 8 — Done
+
+  What was implemented:
+
+  memory/session.py (fully implemented):
+  - init_session_state() — initialises st.session_state["session_ctx"] with
+  current_pos, start_pos, last_goal, run_count, history keys if absent
+  - get_context() — returns the context dict when at least one run has
+  completed, empty dict otherwise (falsy check works cleanly)
+  - update_after_run(result, instruction="") — updates current_pos / start_pos /
+  last_goal, increments run_count, appends to history (rolling window of last 5
+  runs)
+  - clear_context() — resets everything to empty state
+
+  app.py — four wiring points:
+  1. Import init_session_state, get_context, update_after_run, clear_context
+  2. main() calls init_session_state() + _sidebar_context() on every render
+  3. _run_pipeline() (click mode) calls update_after_run(result) after each run
+  4. _prompt_mode() calls update_after_run(result, instruction=instruction) and
+  uses get_context() when calling parse_intent
+  5. Sidebar panel: shows run count, last final pos, last goal, collapsible run
+  history table, and a "Clear history" button
+
+  Acceptance — all green:
+  - [x] get_context() returns {} before first run, populated dict after
+  - [x] update_after_run correctly sets current_pos = result.final_pos
+  - [x] Router memory resolve → returns (200, 200) from session context
+  - [x] MAX_HISTORY rolling window: 10 runs → only last 5 kept
+  - [x] clear_context() resets to empty
+
+  ---
+  Remaining steps: Step 9 (optional A*) and Step 10 (Metrics + README + deploy).
+  Step 9 is marked optional — should I skip it and go straight to Step 10, or
+  implement A*? Your call.
+
+✻ Cogitated for 2m 58s
+
+! git add .                                                                     
+  ⎿  warning: in the working copy of 'app.py', LF will be replaced by CRLF
+     the next time Git touches it
+     warning: in the working copy of 'memory/session.py', LF will be replac
+     ed by CRLF the next time Git touches it
+
+! git commit -m "Step 8 completed"                                              
+  ⎿  [main ca3af3c] Step 8 completed
+      2 files changed, 92 insertions(+), 11 deletions(-)
+
+❯ Proceed with Step 9                                                           
+
+● Let me read the current navigation files before implementing:
+
+  Read 2 files (ctrl+o to expand)
+
+● Now I have the full picture. Implementing A* grid pather with path
+  simplification, then wiring the PATHER="astar" branch into hop_loop.py.
+
+  First add ASTAR_CELL_SIZE to config:
+
+  Read 1 file (ctrl+o to expand)
+● Update(config.py)
+  ⎿  Added 1 line
+      19  MAX_HOPS          = 40              # safety cap (graceful stop
+          , not the limiter)
+      20  GOAL_TOLERANCE_PX = 25
+      21  PATHER            = "detour"        # "detour" | "astar"
+      22 +ASTAR_CELL_SIZE   = 10              # grid cell size in pixels 
+         +for A* pather                                                  
+      23  COLLISION_PENALTY = 10000           # > image diagonal: clear p
+          ath always beats collision
+      24  
+      25  # ── outputs ──────────────────────────────────────────────────
+          ────────────────
+
+● Now write the full A* implementation:
+
+● Update(navigation\astar.py)
+  ⎿  Added 150 lines, removed 10 lines
+        1 -"""Optional grid A* pather — swappable via config PATHER='asta
+          -r'."""                                                        
+        1 +"""Optional grid A* pather — swappable via config PATHER='asta
+          +r'.                                                           
+        2 +                                                              
+        3 +Set cfg.PATHER = "astar" to use this instead of the greedy det
+          +our planner.                                                  
+        4 +Falls back to greedy detour if no path is found.              
+        5 +"""                                                           
+        6  from __future__ import annotations
+        7 +import heapq                                                  
+        8 +import math                                                   
+        9  from typing import List, Optional, Tuple
+       10 +                                                              
+       11  import numpy as np
+       12  
+       13 +# 8-connected movement: (row_delta, col_delta, cost)          
+       14 +_DIRS = [                                                     
+       15 +    (-1,  0, 1.0), ( 1,  0, 1.0), ( 0, -1, 1.0), ( 0,  1, 1.0)
+          +,                                                             
+       16 +    (-1, -1, math.sqrt(2)), (-1,  1, math.sqrt(2)),           
+       17 +    ( 1, -1, math.sqrt(2)), ( 1,  1, math.sqrt(2)),           
+       18 +]                                                             
+       19  
+        7 -def build_grid(image_shape: Tuple[int, int], obstacle_boxes: L
+          -ist[dict],                                                    
+       20 +                                                              
+       21 +def build_grid(image_shape: Tuple[int, ...],                  
+       22 +               obstacle_boxes: List[dict],                    
+       23                 cell_size: int = 10) -> np.ndarray:
+        9 -    """Return a boolean grid (True=blocked) from obstacle boxe
+          -s."""                                                         
+       10 -    raise NotImplementedError                                 
+       24 +    """Return a boolean grid (True=blocked) from obstacle boxe
+          +s.                                                            
+       25  
+       26 +    A 1-cell margin is added around each obstacle for clearanc
+          +e.                                                            
+       27 +    """                                                       
+       28 +    h, w  = image_shape[:2]                                   
+       29 +    rows  = math.ceil(h / cell_size)                          
+       30 +    cols  = math.ceil(w / cell_size)                          
+       31 +    grid  = np.zeros((rows, cols), dtype=bool)                
+       32 +    margin = 1                                                
+       33  
+       13 -def astar(grid: np.ndarray, start: Tuple[int, int],           
+       14 -          goal: Tuple[int, int]) -> Optional[List[Tuple[int, i
+          -nt]]]:                                                        
+       15 -    """Return list of (row, col) waypoints from start to goal,
+          - or None if unreachable."""                                   
+       16 -    raise NotImplementedError                                 
+       34 +    for b in obstacle_boxes:                                  
+       35 +        r1 = max(0,      int(b["y1"] / cell_size) - margin)   
+       36 +        r2 = min(rows-1, int(b["y2"] / cell_size) + margin)   
+       37 +        c1 = max(0,      int(b["x1"] / cell_size) - margin)   
+       38 +        c2 = min(cols-1, int(b["x2"] / cell_size) + margin)   
+       39 +        grid[r1:r2+1, c1:c2+1] = True                         
+       40  
+       41 +    return grid                                               
+       42  
+       43 +                                                              
+       44 +def astar(grid: np.ndarray,                                   
+       45 +          start: Tuple[int, int],                             
+       46 +          goal:  Tuple[int, int]) -> Optional[List[Tuple[int, 
+          +int]]]:                                                       
+       47 +    """Return list of (row, col) waypoints from start to goal,
+          + or None if unreachable.                                      
+       48 +                                                              
+       49 +    Uses 8-connected movement with Euclidean heuristic.       
+       50 +    """                                                       
+       51 +    rows, cols = grid.shape                                   
+       52 +    if grid[start] or grid[goal]:                             
+       53 +        return None                                           
+       54 +                                                              
+       55 +    g_score: dict[Tuple[int, int], float] = {start: 0.0}      
+       56 +    came_from: dict[Tuple[int, int], Tuple[int, int]] = {}    
+       57 +                                                              
+       58 +    def h(cell: Tuple[int, int]) -> float:                    
+       59 +        return math.hypot(cell[0] - goal[0], cell[1] - goal[1]
+          +)                                                             
+       60 +                                                              
+       61 +    # heap entries: (f, g, row, col)  — all numeric, avoids tu
+          +ple comparison issues                                         
+       62 +    heap: list = [(h(start), 0.0, start[0], start[1])]        
+       63 +                                                              
+       64 +    while heap:                                               
+       65 +        f, g, r, c = heapq.heappop(heap)                      
+       66 +        curr = (r, c)                                         
+       67 +                                                              
+       68 +        if curr == goal:                                      
+       69 +            path = []                                         
+       70 +            while curr in came_from:                          
+       71 +                path.append(curr)                             
+       72 +                curr = came_from[curr]                        
+       73 +            path.append(start)                                
+       74 +            path.reverse()                                    
+       75 +            return path                                       
+       76 +                                                              
+       77 +        if g > g_score.get(curr, math.inf):                   
+       78 +            continue                                          
+       79 +                                                              
+       80 +        for dr, dc, cost in _DIRS:                            
+       81 +            nr, nc = r + dr, c + dc                           
+       82 +            if 0 <= nr < rows and 0 <= nc < cols and not grid[
+          +nr, nc]:                                                      
+       83 +                nxt    = (nr, nc)                             
+       84 +                new_g  = g + cost                             
+       85 +                if new_g < g_score.get(nxt, math.inf):        
+       86 +                    g_score[nxt]   = new_g                    
+       87 +                    came_from[nxt] = curr                     
+       88 +                    heapq.heappush(heap, (new_g + h(nxt), new_
+          +g, nr, nc))                                                   
+       89 +                                                              
+       90 +    return None                                               
+       91 +                                                              
+       92 +                                                              
+       93  def grid_to_pixels(path: List[Tuple[int, int]],
+       94                     cell_size: int) -> List[Tuple[int, int]]:
+       21 -    """Convert grid cell coordinates back to pixel coordinates
+          -."""                                                          
+       22 -    raise NotImplementedError                                 
+       95 +    """Convert (row, col) cells to pixel (x, y) center coordin
+          +ates."""                                                      
+       96 +    half = cell_size // 2                                     
+       97 +    return [(c * cell_size + half, r * cell_size + half) for r
+          +, c in path]                                                  
+       98 +                                                              
+       99 +                                                              
+      100 +def _simplify(waypoints: List[Tuple[int, int]],               
+      101 +              tol: float = 1.5) -> List[Tuple[int, int]]:     
+      102 +    """Remove approximately collinear intermediate waypoints. 
+      103 +                                                              
+      104 +    Keeps turns; removes straight-line redundancy.  Reduces ho
+          +p count for                                                   
+      105 +    long diagonal A* paths without losing shape.              
+      106 +    """                                                       
+      107 +    if len(waypoints) <= 2:                                   
+      108 +        return list(waypoints)                                
+      109 +                                                              
+      110 +    def _perp_dist(p0, p1, p2):                               
+      111 +        dx, dy = p2[0] - p0[0], p2[1] - p0[1]                 
+      112 +        px, py = p1[0] - p0[0], p1[1] - p0[1]                 
+      113 +        d = math.hypot(dx, dy)                                
+      114 +        return abs(dx * py - dy * px) / d if d > 0 else 0.0   
+      115 +                                                              
+      116 +    result = [waypoints[0]]                                   
+      117 +    i = 0                                                     
+      118 +    while i < len(waypoints) - 1:                             
+      119 +        j = i + 1                                             
+      120 +        while j < len(waypoints) - 1:                         
+      121 +            if _perp_dist(result[-1], waypoints[j], waypoints[
+          +j + 1]) < tol:                                                
+      122 +                j += 1                                        
+      123 +            else:                                             
+      124 +                break                                         
+      125 +        result.append(waypoints[j])                           
+      126 +        i = j                                                 
+      127 +    return result                                             
+      128 +                                                              
+      129 +                                                              
+      130 +def astar_path(start_px:      Tuple[int, int],                
+      131 +               goal_px:       Tuple[int, int],                
+      132 +               obstacle_boxes: List[dict],                    
+      133 +               image_shape:   Tuple[int, ...],                
+      134 +               cell_size:     int = 10) -> Optional[List[Tuple
+          +[int, int]]]:                                                 
+      135 +    """Public API: run A* in pixel space; return simplified wa
+          +ypoints or None.                                              
+      136 +                                                              
+      137 +    Returns None if no path exists (caller falls back to greed
+          +y detour).                                                    
+      138 +    """                                                       
+      139 +    grid = build_grid(image_shape, obstacle_boxes, cell_size) 
+      140 +    rows, cols = grid.shape                                   
+      141 +                                                              
+      142 +    # Pixel → grid cell (x → col, y → row)                    
+      143 +    def to_cell(px):                                          
+      144 +        return (min(int(px[1] / cell_size), rows - 1),        
+      145 +                min(int(px[0] / cell_size), cols - 1))        
+      146 +                                                              
+      147 +    sc, gc = to_cell(start_px), to_cell(goal_px)              
+      148 +    # Always unblock start/goal so the path can be found      
+      149 +    grid[sc] = False                                          
+      150 +    grid[gc] = False                                          
+      151 +                                                              
+      152 +    path_cells = astar(grid, sc, gc)                          
+      153 +    if path_cells is None:                                    
+      154 +        return None                                           
+      155 +                                                              
+      156 +    raw = grid_to_pixels(path_cells, cell_size)               
+      157 +                                                              
+      158 +    # Pin exact pixel endpoints and simplify collinear runs   
+      159 +    if raw:                                                   
+      160 +        raw[0]  = tuple(start_px)                             
+      161 +        raw[-1] = tuple(goal_px)                              
+      162 +    return _simplify(raw)                                     
+
+● Now add the A* branch to hop_loop.py — minimal change, before the existing
+  greedy loop:
+
+● Update(navigation\hop_loop.py)
+  ⎿  Added 27 lines
+      42      return result
+      43  
+      44  
+      45 +def _waypoints_to_hops(waypoints: List[Tuple[int, int]]) -> Lis
+         +t[dict]:                                                       
+      46 +    """Convert A* waypoints to hop records compatible with the 
+         +greedy format."""                                              
+      47 +    hops = []                                                  
+      48 +    for i in range(len(waypoints) - 1):                        
+      49 +        p0, p1 = waypoints[i], waypoints[i + 1]                
+      50 +        hops.append({                                          
+      51 +            "from":               list(p0),                    
+      52 +            "to":                 list(p1),                    
+      53 +            "best_candidate_idx": 0,                           
+      54 +            "cost":               math.dist(p0, p1),           
+      55 +            "detour":             False,                       
+      56 +            "detour_waypoint":    None,                        
+      57 +        })                                                     
+      58 +    return hops                                                
+      59 +                                                               
+      60 +                                                               
+      61  def run_hop_loop(image,
+      62                   start_pos: Tuple[int, int],
+      63                   goal_pos: Tuple[int, int],
+     ...
+      66      """Return list of hop records {from, to, best_candidate_idx
+          , cost, detour, detour_waypoint}."""
+      67      valid_boxes = _filter_boxes(obstacle_boxes, goal_pos, image
+          .shape)
+      68  
+      69 +    # ── A* pather (optional) ─────────────────────────────────
+         +────────────────                                               
+      70 +    if getattr(cfg, "PATHER", "detour") == "astar":            
+      71 +        from navigation.astar import astar_path                
+      72 +        cell_size = getattr(cfg, "ASTAR_CELL_SIZE", 10)        
+      73 +        waypoints = astar_path(start_pos, goal_pos, valid_boxes
+         +,                                                              
+      74 +                               image.shape, cell_size)         
+      75 +        if waypoints is not None:                              
+      76 +            print(f"[A*] Path found: {len(waypoints)} waypoints
+         +")                                                             
+      77 +            return _waypoints_to_hops(waypoints)               
+      78 +        print("[A*] No path found - falling back to greedy deto
+         +ur")                                                           
+      79 +                                                               
+      80      pos: Tuple[int, int] = tuple(start_pos)
+      81      goal: Tuple[int, int] = tuple(goal_pos)
+      82      hops: List[dict] = []
+
+● Now run the acceptance tests — both "detour" and "astar" pather modes:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Test 5 failed — the 1-cell margin made the wall span all rows (gap was too
+  narrow). Fix the test to use a shorter wall with a clear gap:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The 1-cell margin fills all rows when y2=180 in a 200px image. Correct test 5
+  to use y2=140 (leaves rows 16-19 free):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 8/8 pass. Run a full CLI end-to-end with PATHER=astar to confirm outputs are
+  generated:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● A* pipeline works: 16 waypoints → 15 hops, reached=True, all outputs
+  generated. Step 9 is complete.
+
+  ---
+  Step 9 — Done
+
+  What was implemented (navigation/astar.py):
+
+  - build_grid(image_shape, obstacle_boxes, cell_size=10) — rasterises obstacle
+  boxes onto a boolean grid with 1-cell clearance margin
+  - astar(grid, start_cell, goal_cell) — 8-connected A* with Euclidean
+  heuristic; returns list of (row, col) cells or None if unreachable; start/goal
+  cells are always unblocked before search
+  - grid_to_pixels(path, cell_size) — converts cells to pixel centre coordinates
+  - _simplify(waypoints, tol=1.5) — removes collinear intermediate points (10
+  collinear → 2 endpoints), keeping turns without losing shape
+  - astar_path(start_px, goal_px, obstacle_boxes, image_shape, cell_size) —
+  public API: build grid → run A* → convert + simplify → pin exact pixel
+  endpoints; returns None if no path
+
+  navigation/hop_loop.py — A* branch inserted before the greedy loop: if
+  cfg.PATHER == "astar", runs astar_path and converts waypoints to standard hop
+  records via _waypoints_to_hops. Falls back to greedy detour on None.
+
+  config.py — added ASTAR_CELL_SIZE = 10.
+
+  Acceptance — all green:
+  - [x] 8/8 unit tests pass (grid, open space, unreachable, pixel API, wall
+  bypass, simplify, run_hop_loop A*, run_hop_loop detour)
+  - [x] PATHER="astar": A* path 16 waypoints → 15 hops, reached=True
+  - [x] PATHER="detour": greedy detour works unchanged (5 hops)
+  - [x] All outputs generated (GIF, trail, log)
+
+  ---
+  Ready for Step 10 — Metrics + README + deploy. Say the word to proceed.
+
+✻ Brewed for 4m 21s
+
+❯ I want to do Step 10 latter, I can do the test through Streamlit for both     
+  types?                                                                        
+
+● Yes, but currently the app has no pather toggle — you'd have to edit config.py
+  and restart Streamlit to switch. Let me add a quick sidebar toggle so you can
+  flip between them live:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app.py)
+  ⎿  Added 1 line, removed 1 line
+      275  # ── main ────────────────────────────────────────────────────
+           ──────────────────
+      276  
+      277  def _sidebar_context() -> None:
+      278 -    """Sidebar panel showing session history and a clear butto
+          -n."""                                                         
+      278 +    """Sidebar panel: pather toggle + session history."""     
+      279      with st.sidebar:
+      280          st.header("Session")
+      281          ctx = get_context()
+
+● Update(app.py)
+  ⎿  Added 13 lines
+      277  def _sidebar_context() -> None:
+      278      """Sidebar panel: pather toggle + session history."""
+      279      with st.sidebar:
+      280 +        # ── pather selector ─────────────────────────────────
+          +──────────────                                                
+      281 +        st.header("Settings")                                 
+      282 +        pather = st.radio(                                    
+      283 +            "Navigation pather",                              
+      284 +            options=["detour", "astar"],                      
+      285 +            format_func=lambda p: "Greedy detour (default)" if
+          + p == "detour"                                                
+      286 +                                  else "A* grid pather",      
+      287 +            index=0 if config.PATHER == "detour" else 1,      
+      288 +            key="pather_choice",                              
+      289 +        )                                                     
+      290 +        config.PATHER = pather                                
+      291 +                                                              
+      292 +        st.divider()                                          
+      293          st.header("Session")
+      294          ctx = get_context()
+      295          if not ctx:
+
+● That's it — the sidebar now has a pather radio button that live-updates
+  config.PATHER before each run.
+
+  To start the app:
+
+  ! my_env\Scripts\Activate.ps1; streamlit run app.py
+
+  Or just type this in your terminal:
+  .\my_env\Scripts\streamlit.exe run app.py
+
+  What to test:
+
+  1. Click mode + Greedy detour — upload any image, click Start then Goal,
+  sidebar = "Greedy detour", press Run
+  2. Click mode + A* — same image/points, switch sidebar to "A* grid pather",
+  press Run Again — compare hop count and trajectory shape
+  3. Prompt mode — switch to "Describe with prompt", type something like "move 
+  to the bottom left" or "go to the top right", press Parse & Run
+
+  The A* path tends to have more hops (fine-grained grid steps) but routes more
+  precisely around tight obstacles. The greedy detour is faster with fewer hops
+  on open scenes.
+
+✻ Cooked for 27s
+
+※ recap: Building a Physical AI Planning Agent step by step. Steps 1-9 are complete including click/prompt navigation, OWL-ViT detection, A* and greedy pathing, LLM reasoning, and session context. Next: run Step 10 (metrics, README, deploy). (disable recaps in /config)

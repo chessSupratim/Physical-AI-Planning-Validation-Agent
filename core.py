@@ -39,11 +39,16 @@ def run_pipeline(image: np.ndarray,
     """
     Path("outputs").mkdir(exist_ok=True)
 
-    # Obstacles detected once per run (populated in Step 4)
-    obstacle_boxes: List[dict] = []
+    # ── obstacle detection + floor region (once per run) ─────────────────────
+    if getattr(cfg, "DETECT_OBSTACLES", True):
+        from localization.obstacles import detect_obstacles
+        obstacle_boxes, floor_y_top = detect_obstacles(image, cfg)
+    else:
+        obstacle_boxes, floor_y_top = [], None
 
     # ── navigation ───────────────────────────────────────────────────────────
-    hops = run_hop_loop(image, start_pos, goal_pos, obstacle_boxes, cfg)
+    hops = run_hop_loop(image, start_pos, goal_pos, obstacle_boxes, cfg,
+                        floor_y_top=floor_y_top)
 
     final_pos = tuple(hops[-1]["to"]) if hops else tuple(start_pos)
     reached_goal = math.dist(final_pos, goal_pos) <= cfg.GOAL_TOLERANCE_PX
@@ -60,7 +65,8 @@ def run_pipeline(image: np.ndarray,
     init_candidates = generate_candidates(start_pos, goal_pos, init_step)
 
     p_cand = "outputs/candidates.png"
-    draw_candidates_png(image, init_candidates, start_pos, goal_pos, p_cand)
+    draw_candidates_png(image, init_candidates, start_pos, goal_pos, p_cand,
+                        obstacle_boxes=obstacle_boxes, floor_y_top=floor_y_top)
     output_paths["candidates"] = p_cand
 
     p_sel = "outputs/selected.png"
@@ -68,12 +74,14 @@ def run_pipeline(image: np.ndarray,
     output_paths["selected"] = p_sel
 
     p_final = "outputs/final.png"
-    draw_final_png(image, hops, start_pos, goal_pos, p_final)
+    draw_final_png(image, hops, start_pos, goal_pos, p_final,
+                   obstacle_boxes=obstacle_boxes, floor_y_top=floor_y_top)
     output_paths["final"] = p_final
 
     if cfg.SAVE_TRAIL_STILL:
         p_trail = "outputs/trail.png"
-        draw_trail_png(image, hops, start_pos, goal_pos, p_trail)
+        draw_trail_png(image, hops, start_pos, goal_pos, p_trail,
+                       obstacle_boxes=obstacle_boxes, floor_y_top=floor_y_top)
         output_paths["trail"] = p_trail
 
     p_gif = "outputs/trajectory.gif"
