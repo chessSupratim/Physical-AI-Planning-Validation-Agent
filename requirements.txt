@@ -1,0 +1,13 @@
+streamlit
+streamlit-image-coordinates
+opencv-python
+pillow
+numpy
+imageio
+imageio-ffmpeg
+transformers
+torch
+timm
+google-genai
+anthropic
+python-dotenv
