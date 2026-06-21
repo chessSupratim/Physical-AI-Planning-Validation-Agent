@@ -49,7 +49,7 @@ def run_pipeline(image: np.ndarray,
     reached_goal = math.dist(final_pos, goal_pos) <= cfg.GOAL_TOLERANCE_PX
 
     # ── reasoning (mandatory) ────────────────────────────────────────────────
-    reasoning = explain_plan(hops, goal_pos, cfg)
+    reasoning = explain_plan(hops, goal_pos, cfg, image=image)
 
     # ── visualisations ───────────────────────────────────────────────────────
     output_paths: dict = {}
