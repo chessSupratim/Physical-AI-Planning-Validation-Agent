@@ -17,6 +17,7 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 import config
 from core import run_pipeline
 from input.click_input import validate_click
+from memory.session import init_session_state, get_context, update_after_run, clear_context
 
 # Maximum width for the interactive image display (px)
 _MAX_DISPLAY_W = 720
@@ -151,6 +152,7 @@ def _run_pipeline(image: np.ndarray) -> None:
     goal  = st.session_state.goal_pos
     with st.spinner("Planning trajectory…"):
         result = run_pipeline(image, start, goal, config)
+    update_after_run(result)
     st.session_state.run_result = result
     st.session_state.phase      = "done"
     st.rerun()
@@ -239,7 +241,7 @@ def _prompt_mode(image: np.ndarray) -> None:
 
         with st.spinner("Parsing instruction…"):
             intent = parse_intent(instruction, config,
-                                  session_context=st.session_state.get("session_ctx"))
+                                  session_context=get_context())
 
         st.write("**Parsed intent:**", intent)
 
@@ -263,6 +265,7 @@ def _prompt_mode(image: np.ndarray) -> None:
         with st.spinner("Planning trajectory…"):
             result = run_pipeline(image, start_pos, goal_pos, config)
 
+        update_after_run(result, instruction=instruction)
         st.session_state.run_result = result
 
     if st.session_state.run_result is not None:
@@ -271,11 +274,42 @@ def _prompt_mode(image: np.ndarray) -> None:
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
+def _sidebar_context() -> None:
+    """Sidebar panel showing session history and a clear button."""
+    with st.sidebar:
+        st.header("Session")
+        ctx = get_context()
+        if not ctx:
+            st.caption("No runs yet this session.")
+        else:
+            st.metric("Runs", ctx.get("run_count", 0))
+            st.write(f"**Last final pos:** {ctx.get('current_pos')}")
+            st.write(f"**Last goal:** {ctx.get('last_goal')}")
+
+            history = ctx.get("history") or []
+            if history:
+                with st.expander("Run history", expanded=False):
+                    for h in reversed(history):
+                        label = h.get("instruction", f"run {h['run']}")
+                        reached = "reached" if h["reached"] else "stopped"
+                        st.write(
+                            f"**#{h['run']}** — {label[:40]}  \n"
+                            f"start {h['start']} -> final {h['final']}  \n"
+                            f"{h['hops']} hops, {reached}"
+                        )
+
+        if st.button("Clear history", use_container_width=True):
+            clear_context()
+            st.rerun()
+
+
 def main() -> None:
     st.set_page_config(page_title="Physical AI Planning Agent", layout="wide")
     st.title("Physical AI Planning & Validation Agent")
 
     _init_state()
+    init_session_state()
+    _sidebar_context()
 
     # Mode radio
     mode = st.radio(
