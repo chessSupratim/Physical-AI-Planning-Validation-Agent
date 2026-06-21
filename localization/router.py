@@ -37,7 +37,7 @@ def resolve(field: dict,
             print(f"[router] No detection for '{value}' (threshold={threshold})")
             return None
 
-        print(f"[router] '{value}' → center={det['center']}  "
+        print(f"[router] '{value}' -> center={det['center']}  "
               f"score={det['score']:.3f}  t={det['elapsed_s']}s")
 
         center = det["center"]
