@@ -9,7 +9,7 @@ USE_LLM_PARSER = True               # parse messy prompts -> {source, target}
 # ── localization ─────────────────────────────────────────────────────────────
 USE_DETECTOR       = True
 DETECTOR_MODEL_ID  = "google/owlvit-base-patch32"
-DETECTOR_THRESHOLD = 0.1
+DETECTOR_THRESHOLD = 0.01   # OWL-ViT scores on tabletop/non-web images are low
 LOCALIZER_ORDER    = ["detector", "vlm"]   # detector first, vlm fallback
 HSV_VERIFY         = True                  # reject off-object points
 
