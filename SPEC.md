@@ -58,7 +58,7 @@ LLM intent parser  <-- session_state   |  (points used directly,
    |  extracts {source, target}        |   no localization)
    v                                    |
 Router per field:                       |
-  object   -> object detector           |
+  object   -> OWL-ViT detector          |
   direction-> heuristic mapping         |
    |                                    |
    v                                    |
@@ -68,10 +68,31 @@ HSV cross-check (reject off-object)     |
                   v
         start_pos, goal_pos  (two pixel coordinates)
                   v
+   ┌─────────────────────────────────────────────────┐
+   │  Obstacle detection  (once per run, localization/obstacles.py)   │
+   │                                                 │
+   │  Stage A — Gemini VLM sees the image:           │
+   │    → obstacle names  (e.g. "cardboard box")     │
+   │    → approximate bounding boxes (0–1000 scale)  │
+   │    → floor_y_top  (y-pixel where floor begins)  │
+   │         |                                       │
+   │         v                                       │
+   │  Stage B — OWL-ViT queried with Gemini's names: │
+   │    → tight pixel-accurate bounding boxes        │
+   │         |                                       │
+   │         v                                       │
+   │  Stage C — Merge + IoU NMS:                     │
+   │    Gemini boxes (score 0.5) + OWL-ViT boxes     │
+   │    → deduplicated, clean obstacle list          │
+   └──────────────┬──────────────────────────────────┘
+                  v
+        obstacle_boxes  +  floor_y_top
+                  v
    Navigation core (deterministic):
      hop-wise straight steps,
-     check obstacles in path each hop,
-     commit detour / A* around blocks
+     full-line obstacle look-ahead every hop,
+     floor_y_top constrains candidate endpoints,
+     commit perpendicular detour / A* around blocks
                   v
    LLM reasoning (MANDATORY): explains plan
                   v
