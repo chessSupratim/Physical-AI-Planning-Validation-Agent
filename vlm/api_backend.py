@@ -9,6 +9,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Bridge Streamlit Cloud secrets into env vars (local .env still works via load_dotenv above)
+try:
+    import streamlit as st
+    for _k in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+        if _k not in os.environ and _k in st.secrets:
+            os.environ[_k] = st.secrets[_k]
+except Exception:
+    pass
+
 
 def ask_vlm(prompt: str, cfg, image: Optional[np.ndarray] = None) -> str:
     """Send `prompt` (+ optional image) to the configured backend; return text response."""
