@@ -134,7 +134,7 @@ def _show_results(result) -> None:
             }
             for i, h in enumerate(result.hops)
         ]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
     # Reasoning + log
     with st.expander("Reasoning"):
@@ -218,6 +218,10 @@ def _prompt_mode(image: np.ndarray) -> None:
         "**Mode A — Prompt**: Type a natural-language instruction. "
         "The LLM will extract start and goal, then the detector/heuristic will resolve them to pixels."
     )
+
+    # Image preview (static — no click needed in prompt mode)
+    _, display_pil = _scale_for_display(image)
+    st.image(display_pil, caption="Uploaded image", width=_MAX_DISPLAY_W)
 
     instruction = st.text_input(
         "Instruction",
@@ -311,7 +315,7 @@ def _sidebar_context() -> None:
                             f"{h['hops']} hops, {reached}"
                         )
 
-        if st.button("Clear history", use_container_width=True):
+        if st.button("Clear history"):
             clear_context()
             st.rerun()
 
