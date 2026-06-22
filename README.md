@@ -19,6 +19,12 @@ A **Physical AI Planning and Validation Agent** that takes an image and a start/
 
 ---
 
+## Demo video
+
+<video src="https://github.com/chessSupratim/Physical-AI-Planning-Validation-Agent/releases/download/v1_demoVideo/Implementation_DemoVideo.mp4" controls width="100%"></video>
+
+---
+
 ## How it works (honest framing)
 
 | Component | What it does | What it does NOT do |
