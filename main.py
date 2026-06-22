@@ -85,7 +85,8 @@ def main():
     # ── run pipeline ─────────────────────────────────────────────────────────
     result = run_pipeline(image, start_pos, goal_pos, config)
 
-    # ── print summary ────────────────────────────────────────────────────────
+    # ── print summary + metrics ──────────────────────────────────────────────
+    from evaluation.metrics import print_metrics
     print("\n=== Run complete ===")
     print(f"  Start:        {result.start_pos}")
     print(f"  Goal:         {result.goal_pos}")
@@ -96,6 +97,7 @@ def main():
     print("  Outputs:")
     for k, v in result.output_paths.items():
         print(f"    {k}: {v}")
+    print_metrics(result, tolerance_px=config.GOAL_TOLERANCE_PX)
 
 
 if __name__ == "__main__":
