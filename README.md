@@ -1,8 +1,21 @@
 # Physical AI Planning & Validation Agent
 
-A Streamlit web app (and CLI) that takes an image and a start/goal — given either by two manual clicks or by a natural-language instruction — and produces a **validated hop-by-hop trajectory** from start to goal, routing around detected obstacles.
+A **Physical AI Planning and Validation Agent** that takes an image and a start/goal (given either by a natural-language instruction or by two manual clicks) and produces a **validated trajectory** from start to goal. It does this by:
 
-Outputs include an **animated GIF**, a **trail-line still image**, annotated candidate arrows, a cost/hop table, LLM reasoning, and a structured log.
+- **resolving the start and goal to pixel coordinates** — from a typed instruction (LLM parses intent → object detector / heuristic locates points) or from two manual clicks;
+- **generating candidate physical moves (PIVOT-style)** — at each step it proposes straight candidate arrows from the current position;
+- **validating candidates with a deterministic predictive rollout + cost function (VLMPC-style)** — each candidate is simulated and scored on goal distance, collision, and path length, including a full-line look-ahead so obstacles in the path force a detour;
+- **selecting the minimum-cost candidate and advancing one short hop**, re-planning at the next hop — so the object reaches the goal over **multiple short straight hops**, routing around obstacles, never in a single jump;
+- **reasoning over the result with an LLM** to explain the plan; and
+- **producing visual + structured outputs** — an animated trajectory GIF, a trail-line still image, annotated stills, a cost/hop table, and a structured log.
+
+---
+
+**Description:** This is a course project for M.Tech Online - Deep Learning Summer (DA 225o) on Physical AI Planning & Validation Agent from IISC Bangalore
+
+---
+
+**Live demo:** [physical-ai-planning-validation-agent.streamlit.app](https://physical-ai-planning-validation-agent.streamlit.app/)
 
 ---
 
@@ -135,8 +148,11 @@ Both modes produce the same outputs and print metrics to stdout.
 
 ## Deployment
 
+**Deployed at:** [physical-ai-planning-validation-agent.streamlit.app](https://physical-ai-planning-validation-agent.streamlit.app/)
+
 ### Streamlit Community Cloud (recommended)
 
+To deploy your own fork:
 1. Push this repo to GitHub.
 2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → select the repo, branch `main`, file `app.py`.
 3. Under **Advanced settings → Secrets**, add:
@@ -149,6 +165,12 @@ Both modes produce the same outputs and print metrics to stdout.
 ### Hugging Face Spaces (fallback if memory exceeds ~1 GB)
 
 Create a new Space with **Streamlit** SDK, upload all files, set the same secrets under **Settings → Repository secrets**. The `app.py` is identical — no code changes needed.
+
+---
+
+## Pipeline
+
+![Full pipeline diagram](pipeline.svg)
 
 ---
 
