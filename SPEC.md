@@ -145,7 +145,6 @@ The core must be testable headlessly:
 The router resolves each {type, value} to a pixel point:
 
 - **direction** -> heuristic `goal_to_pixel(value, image_shape)`: left->(w/4,cy), right->(3w/4,cy), top->(cx,h/4), bottom->(cx,3h/4), diagonals -> nearest corner; "corner" with a side -> that top corner. Misspelling-tolerant.
-  > **Note (current limitation):** The bottom-y is fixed at 75 % of image height (`3*h//4`). In perspective room photos this lands on furniture or walls rather than the visible floor. The intended fix (`BOTTOM_Y_FRAC=0.88`, floor-aware x-scan using `floor_y_top` + obstacle map) is designed but not yet in the codebase — see §17.
 - **object** -> **object detector first**:
   - OWL-ViT (google/owlvit-base-patch32) or Grounding DINO, loaded once, reused.
   - Query with the FULL descriptive phrase ("round red disc", not "red") so it disambiguates among same-color objects (red square vs red circle vs red triangle).
@@ -174,29 +173,10 @@ run_pipeline(image, start_pos, goal_pos, cfg) -> RunResult
 
 ### Validated fixes that MUST be preserved
 - set/frozenset -> sorted list in evaluation/logger.py (no JSON crash).
-- Goal-inside-obstacle: an obstacle box that CONTAINS the goal does not block (the destination is not a wall). **Current implementation:** `_filter_boxes()` in `hop_loop.py` removes such boxes from nav_boxes.
+- Goal-inside-obstacle: an obstacle box that CONTAINS the goal does not block (the destination is not a wall).
 - Start-inside-obstacle: an obstacle box containing the START is excluded (mover is not an obstacle).
 - Discard hallucinated obstacle boxes spanning >80% of image width/height (skip for virtual floor-wall box).
 - Obstacles + floor region detected ONCE per run, reused across hops (no per-hop VLM/detector calls).
-
-### Goal adjustment (PENDING — not yet implemented)
-When the localiser returns the center of a named object (e.g. the bench), that point sits inside the object's own obstacle cluster. The goal-exception removes the cluster from nav_boxes, so the path travels straight through the object body.
-
-**Intended fix — `adjust_goal_to_floor(goal_pos, obstacle_boxes, image_shape, start_pos, cfg, floor_y_top)`:**
-- Find the cluster containing the goal pixel.
-- Compute approach side: if `start_x >= cluster_center_x` → approach from the right (`ax = cluster.x2 + 20`); else from the left (`ax = cluster.x1 - 20`).
-- `ay = cluster.y1 + 0.65 × (cluster.y2 - cluster.y1)`, clamped to `floor_y_top`.
-- Fall back to original downward push only if the approach point is inside another cluster.
-- Called from `core.py` BEFORE `run_hop_loop`, result passed as new `goal_pos`.
-
-### Obstacle box clustering (PENDING — not yet implemented)
-After NMS in `obstacles.py` there are still 6–10 overlapping sub-boxes representing one physical object. Without merging, each sub-box triggers a separate detour in the hop-loop, causing cascading detours around the same object.
-
-**Intended fix — `_merge_boxes(boxes, margin)` in `hop_loop.py`:**
-- Cluster boxes whose expanded-by-margin bounding rects overlap.
-- Replace each cluster with its union bounding rect.
-- `OBSTACLE_MERGE_MARGIN` (config, default 5 px) controls merge aggressiveness.
-- `prepare_obstacle_boxes(obstacle_boxes, goal_pos, image_shape, start_pos, cfg)` — single function that calls `_filter_hallucinations` + `_merge_boxes` + goal/start exceptions + >80% filter. Used by BOTH `run_hop_loop` and all draw calls so navigation and visualisation always use the same set of boxes.
 
 ### Obstacle detection pipeline (A+B — localization/obstacles.py)
 Obstacle detection runs once per pipeline call before navigation starts. It uses a two-stage approach:
@@ -395,8 +375,6 @@ DETECT_OBSTACLES     = True
 OBSTACLE_QUERIES     = ["block","box","cube","chair","table","object"]  # static fallback only
 OBSTACLE_THRESHOLD   = 0.01
 FLOOR_AWARE          = True         # constrain path to floor region (y >= floor_y_top)
-OBSTACLE_MERGE_MARGIN = 5           # px margin for merging nearby obstacle clusters (PENDING impl)
-
 # navigation
 STEP_FRACTION        = 0.30
 MIN_STEP_PIXELS      = 30
@@ -413,8 +391,6 @@ SAVE_TRAIL_STILL     = True
 # context
 SESSION_CONTEXT      = True
 ```
-
-> **Note:** `OBSTACLE_MERGE_MARGIN` is referenced in the intended `_merge_boxes` / `adjust_goal_to_floor` implementation but is not yet in `config.py`. Add it when those functions are implemented.
 
 ### Critical: GEMINI_MODEL format
 The Gemini model string must use dashes and lowercase: `"gemini-3.1-flash-lite"`. Strings like `"Gemini 3.1 Flash Lite"` (spaces/capitals) cause 400 INVALID_ARGUMENT errors from the API. The fallback default in `vlm/api_backend.py` must also use the correct format.
@@ -440,7 +416,7 @@ Every step: activate `my_env` first; add new libs to `requirements.txt`; pause f
 
 ## 16. Current build status
 
-### Completed (as of commit `be74599`)
+### Completed (as of commit `8c05776`)
 | Component | Status | Notes |
 |---|---|---|
 | Steps 0–9 (skeleton → session context) | ✅ Complete | All CLI + Streamlit modes working |
@@ -451,20 +427,6 @@ Every step: activate `my_env` first; add new libs to `requirements.txt`; pause f
 | Floor awareness (floor_y_top) | ✅ Implemented | Per-hop candidate filter; floor line drawn |
 | Streamlit image preview (prompt mode) | ✅ Implemented | Static preview above text input |
 | Streamlit deprecation warnings | ✅ Fixed | `use_container_width` → `width=` API |
-
-### Pending (known bugs — not yet implemented)
-
-**Bug A — Path goes through obstacle body (3D corridor images)**
-- Root cause: localiser returns center of bench → inside obstacle cluster → goal-exception removes the whole cluster from nav_boxes → path walks straight through the bench.
-- Fix: `adjust_goal_to_floor()` in `hop_loop.py` + call in `core.py` (see §7 Goal adjustment).
-
-**Bug B — Start position lands on right wall, not open floor (prompt mode, direction source)**
-- Root cause: `goal_to_pixel()` uses `3*w//4` for right-x and `3*h//4` (75%) for bottom-y regardless of obstacles or perspective. In corridor photos this points at the baseboard.
-- Fix: `BOTTOM_Y_FRAC=0.88` + floor-aware x-scan in `heuristic.py`, threaded through `router.py` → `app.py`/`main.py` pre-detect pattern (see §6 Note, §7 Goal adjustment).
-
-**Obstacle clustering (cascading detours)**
-- Root cause: NMS leaves 6–10 sub-boxes per physical object; each triggers a separate detour.
-- Fix: `_merge_boxes()` + `prepare_obstacle_boxes()` in `hop_loop.py` (see §7 Obstacle box clustering).
 
 ---
 

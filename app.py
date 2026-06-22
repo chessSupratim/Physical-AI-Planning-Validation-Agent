@@ -321,7 +321,8 @@ def _sidebar_context() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Physical AI Planning Agent", layout="wide")
+    st.set_page_config(page_title="Physical AI Planning Agent", layout="wide",
+                       initial_sidebar_state="collapsed")
     st.title("Physical AI Planning & Validation Agent")
 
     _init_state()

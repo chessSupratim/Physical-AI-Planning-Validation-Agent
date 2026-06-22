@@ -245,33 +245,6 @@ Hot-reload **does not clear `sys.modules`**. Changes to any imported submodule r
 
 ---
 
-## Pending fixes (known bugs — not yet implemented)
-
-### Bug A — Path goes through obstacle body  ❌ PENDING
-**Symptom:** In 3D corridor images the path visually passes through the bench/boxes.
-**Root cause:** Localiser returns the CENTER of the bench → inside the bench's obstacle cluster → goal-exception removes that cluster from nav_boxes → path goes straight through the bench body.
-
-**Fix required (all in one PR):**
-1. `navigation/hop_loop.py` — add `_filter_hallucinations()`, `_merge_boxes(boxes, margin)`, `prepare_obstacle_boxes()`, and `adjust_goal_to_floor(goal_pos, obstacle_boxes, image_shape, start_pos, cfg, floor_y_top=None)`.
-2. `core.py` — call `adjust_goal_to_floor` BEFORE `run_hop_loop`; use `prepare_obstacle_boxes` as single source of truth for nav AND all draw calls.
-3. `config.py` — add `OBSTACLE_MERGE_MARGIN = 5`.
-
-**Acceptance:** trail.png shows goal dot to the side of the bench (not inside it); path does not cross any magenta obstacle box.
-
-### Bug B — Start position on right wall, not open floor  ❌ PENDING
-**Symptom:** In prompt mode with `source=direction:bottom right`, the red START dot lands against the right wall/baseboard rather than on the open corridor floor.
-**Root cause:** `goal_to_pixel` uses fixed `3*w//4` for right-x and `3*h//4` (75%) for bottom-y regardless of obstacles or perspective. In corridor photos 75%h often lands on furniture, not floor.
-
-**Fix required:**
-1. `localization/heuristic.py` — add `BOTTOM_Y_FRAC = 0.88`; add `floor_y_top`, `obstacle_boxes`, `image` params to `goal_to_pixel`; implement `_scan_x` (scan inward from edge, skip obstacle-blocked positions, confirm HSV matches floor sample).
-2. `localization/router.py` — thread `floor_y_top` and `obstacle_boxes` to `goal_to_pixel`.
-3. `app.py` (`_prompt_mode`) and `main.py` (prompt branch) — call `detect_obstacles` BEFORE `resolve()`; pass results to both `resolve()` and `run_pipeline()` to avoid double-detection.
-4. `core.py` — add `obstacle_boxes=None, floor_y_top=None` params to `run_pipeline()`; skip detection if pre-computed values are provided.
-
-**Acceptance:** red START dot sits on the open corridor floor toward the bottom-right, clear of the wall.
-
----
-
 ## Step 10 — Metrics, README & deploy  ❌ NOT STARTED
 
 **Goal:** evaluation, docs, and hosting.
